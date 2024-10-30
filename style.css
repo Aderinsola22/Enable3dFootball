@@ -1,0 +1,73 @@
+img{
+    width:10%;
+    height:auto;
+}
+
+#player-info{
+    position: fixed;top: 88%;
+}
+#bar{
+ font-size: 12px;
+ text-align: center;
+}
+
+.stamina-bar{
+    background-color: white;
+    width:20%;
+    height:12px;
+    border-radius: 15px;
+    position: fixed;top: 93.5%;
+
+}
+
+.power-bar{
+    background-color:white ;
+    width:20%;
+    height: 12px;
+    border-radius: 15px;
+    position: fixed;top: 95%;
+
+}
+
+
+.time-style{
+    transform: translate(590%,520%);
+    background-color:lightsalmon ;
+    margin-left: 20%;
+    margin-right: 50%;
+    width:5%;
+    text-align: center;
+}
+
+
+.scoreboard-style{
+    transform: translate(40%,-13%);
+}
+.team-1-style{
+    margin-right: 80%;
+    text-align: center;
+}
+
+.team-2-style{
+ transform: translate(21%,-118%);
+ margin-right: 80%;
+text-align: center;
+ 
+}
+#team-name{
+    background-color: greenyellow;
+    margin-left: 40%;
+    margin-right: 40%;
+    margin-top: 0%;
+}
+#team-goals{
+    background-color: blueviolet;
+    margin-left: 40%;
+    margin-right: 40%;
+    transform: translateY(-75%);
+
+}
+.player-name{
+    background-color:coral;
+    transform: translate(90%,60%);
+}
