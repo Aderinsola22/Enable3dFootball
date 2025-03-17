@@ -1,7 +1,7 @@
 import {Scene3D,ExtendedObject3D ,THREE } from 'enable3d'
 import { MatchScene } from '../core/MatchScene';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-//import Outfield from './Outfield.js';
+import { KeeperStates } from '../statemachine/KeeperStates.js';
 import {Team} from './Team.js';
 import {FBXLoader} from 'three/examples/jsm/loaders/FBXLoader.js';
 import { Keyboard } from '@yandeu/keyboard';
@@ -17,28 +17,32 @@ export class Keeper{
         this.playerName=playerName;
         this.keyboard = new Keyboard();
         this.keyboard.pause();
-        this.animations=['idle','jog_forward','soccer_sprint','soccer_pass','standing_up',
-        'strike_forward','tackle_react','gk_body_block_left','gk_body_block_right','gk_drop_kick',
-       'gk_idle_ball','gk_idle_no_ball','gk_low_catch','gk_medium_catch','gk_overhand_throw','gk_pass',
-     'gk_placing_ball_quick','gk_placing_ball_slow','gk_save_left','gk_save_right','gk_sidestep_left','gk_sidestep_right','gk_save_right_ip'];;
+        this.animations=['jog_forward','soccer_sprint','soccer_pass','standing_up_ip',
+        'strike_forward','tackle_react_ip','gk_body_block_left_ip','gk_body_block_right_ip','gk_drop_kick_ip',
+       'gk_idle_ball','gk_idle_no_ball','gk_low_catch_ip','gk_medium_catch_ip','gk_overhand_throw_ip','gk_pass_ip',
+     'gk_placing_ball_quick_ip','gk_placing_ball_slow_ip','gk_save_left_ip','gk_save_right_ip','gk_sidestep_left_ip','gk_sidestep_right_ip'];
         this.ball=ball;
         this.isanticipated=false;
         this.distBall=null;
+        this.distPost=null;
         this.isPlayerControlled=false;
         this.yukaPlayer= new YUKA.Vehicle();
         this.yukaObstacle= new YUKA.GameEntity();
         this.statAttr={};
         this.team=team;
+        this.saveDirection='Center';
         }
 
         SetPlayer(scene,target,goalassignment,shade,rot,size,offsetX,offsetY,offsetZ){
             target.scale.setScalar(size);
-            target.position.y=-3.5;
+            target.position.y=-2.5;
             this.player= new ExtendedObject3D();
             const boundingBox= new THREE.Box3();
             const boundingSphere = new THREE.Sphere();
             this.player.add(target);
             this.player.userData.postassignment=goalassignment;
+            this.player.name=this.playerName;
+            this.player.userData.parent=this;
             this.player.traverse(c=>{
               c.shape='convex';
               if(c.name==="mixamorig5LeftForeArm"){
@@ -180,10 +184,12 @@ export class Keeper{
        })
       
            this.player.position.set(offsetX,offsetY,offsetZ);
+           this.StartX = offsetX;
+           this.StartZ=offsetZ;
            this.player.rotateY(rot); 
             scene.add.existing(this.player);
             this.yukaPlayer.setRenderComponent(this.player,this.yukaSync);
-            scene.physics.add.existing(this.player,{/*shape:'capsule',radius:0.25,height:4.5*/shape:'cylinder',radius:0.3,height:7,margin:0.01,mass:5,collisionGroup:8,collisionMask:13});
+            scene.physics.add.existing(this.player,{/*shape:'capsule',radius:0.25,height:4.5*/shape:'cylinder',radius:0.3,height:5,margin:0.2,mass:5,collisionGroup:8,collisionMask:13});
             this.player.body.setFriction(0.8);
            this.player.body.setAngularFactor(0, 0, 0);
            this.player.body.setBounciness(0.25);
@@ -195,18 +201,24 @@ export class Keeper{
            this.playerClone=SkeletonUtils.clone(target);
 
            this.yukaPlayer.position.copy(this.player.position);
-           this.yukaObstacle.position.copy(this.player.position);
+          this.yukaObstacle.position.copy(this.player.position);
           // this.player.matrixAutoUpdate=false;
           boundingBox.getBoundingSphere(boundingSphere);
          // console.log("Bounding Sphere Center:", boundingSphere);
          // console.log("Bounding Sphere Radius:", boundingSphere.radius);
-          this.yukaPlayer.maxSpeed=3;
-          //optimize bounding radius later
-           this.yukaPlayer.boundingRadius=0.8//boundingSphere.radius;
-           this.yukaPlayer.smoother=new YUKA.Smoother(45);
-           this.yukaObstacle.boundingRadius=0.8//boundingSphere.radius;
-     
+          //TODO:optimize bounding radius later
+          // this.yukaPlayer.boundingRadius=2//boundingSphere.radius;
+           this.yukaPlayer.smoother=new YUKA.Smoother(60);
+           this.yukaObstacle.boundingRadius= 2//this.yukaPlayer.boundingRadius  //boundingSphere.radius;
+           this.yukaPlayer.name=this.playerName;
+           this.yukaObstacle.name=this.playerName;
+          this.yukaObstacle.smoother=new YUKA.Smoother(60);
+           this.stateMachine=new KeeperStates(this.yukaPlayer,this,scene);
+           this.stateMachine.changeTo('tendGoal');
+          this.post=scene.scene.getObjectByName(this.player.userData.postassignment);
            //this.player.visible=false;
+          // console.log(this.stateMachine);  
+
      
          }   
          _update(scene){
@@ -239,15 +251,28 @@ export class Keeper{
               const dotP=this.playerTurn.dot(directBall);
               const thetaPlayer = Math.atan2(this.playerTurn.x, this.playerTurn.z)
               this.player.body.setAngularVelocityY(0);
+              
+            /*  const cross =new THREE.Vector3().crossVectors(this.playerTurn,directBall);
+            // console.log("Cross",cross.y);
+              const diveDirection= new THREE.Vector3();
+                if(dotP>0){
+                  if(cross.y>0){diveDirection.crossVectors(this.player.up,this.playerTurn).normalize(); this.saveDirection='Left'; }
+                  else if(cross.y<0) {diveDirection.crossVectors(this.playerTurn,this.player.up).normalize(); this.saveDirection='Right';}
+                  else{this.saveDirection='Center'}
+                 // console.log("Dive Direction",diveDirection);
+                }   */
+
               const x=Math.sin(thetaPlayer)*acc,
                 y= this.player.body.velocity.y,
                 z= Math.cos(thetaPlayer)*acc
                 this.distBall=this.player.position.distanceTo(this.ball.position);
                 this.player.userData.distBall=this.distBall;
+                this.postTrack(scene);
+
                 this.player.userData.dotP=dotP;
 
-                const director=scene.scene.getObjectByName('Director');
-                if(this.player.children[1]===director){
+                this.director=scene.scene.getObjectByName('Director');
+                if(this.player.children[1]===this.director){
             
                 if(this.keyboard._isPaused === true){
             
@@ -258,7 +283,7 @@ export class Keeper{
                 }
                   if(this.keyboard._isPaused === false){
                 //implement animations here
-                // redo entire code section with aniticipation mode in mind 
+                //TODO: redo entire code section with aniticipation mode in mind 
                 this.keyboard.on.down('KeyW', keyCode => {
       
                   if(this.Sprint){
@@ -275,10 +300,10 @@ export class Keeper{
                       this.player.anims.play('soccer_sprint');
                     }
                     })
-                 //skip for now and fix animation blending for shooting and passing and goalkeeper saving
+                 //TODO: skip for now and fix animation blending for shooting and passing and goalkeeper saving
                  this.keyboard.once.down('KeyK', keyCode => {
           
-                  // for low ball and mid balls
+                  //TODO: for low ball and mid balls
                   this.player.anims.play('strike_forward');
             
                   if(this.Sprint && this.W){
@@ -294,14 +319,14 @@ export class Keeper{
           
                   }
                   
-                  //for very high balls do a header later
+                  //TODO: for very high balls do a header later
           
                  
                     })
           
                     this.keyboard.once.down('KeyJ', keyCode => {
           
-                      // for low ball and mid balls
+                      //TODO: for low ball and mid balls
                       this.player.anims.play('soccer_pass');
                       if(this.Sprint && this.W){
                         this.player.anims.get('soccer_pass').crossFadeTo(this.player.anims.get('soccer_sprint'),2,true);
@@ -316,15 +341,25 @@ export class Keeper{
                 
                       }
           
-                      //for very high balls do a header later
+                      //TODO: for very high balls do a header later
                     
                           }) 
-                  //add anticipation code here
+                  //TODO: add anticipation code here
 
-                  //fix saving animation later
                   this.keyboard.once.down('Space',keyCode =>{
-                    this.player.anims.play('gk_save_right_ip');
-                    this.player.anims.get('gk_save_right_ip').crossFadeTo(this.player.anims.get('gk_idle_no_ball'),5,true);
+
+                    if(this.saveDirection=='Left'){
+                      this.player.anims.play('gk_save_left_ip');
+                    this.player.anims.get('gk_save_left_ip').crossFadeTo(this.player.anims.get('gk_idle_no_ball'),5,true);
+                    }
+                   else if(this.saveDirection=='Right'){
+                      this.player.anims.play('gk_save_right_ip');
+                      this.player.anims.get('gk_save_right_ip').crossFadeTo(this.player.anims.get('gk_idle_no_ball'),5,true);
+                    }
+                    else{
+                      //TODO: add central saving later
+                    }
+                   
                   })  
           
           
@@ -341,12 +376,6 @@ export class Keeper{
                                 this.player.anims.play('gk_idle_no_ball');
                               }
                               }) 
-
-                //fix and make it in place
-             /*   this.keyboard.on.down('Space', keyCode => {
-                this.player.anims.play('gk_save_right_ip');
-
-                  })*/
                 
 
                   //implement controls here
@@ -371,48 +400,18 @@ export class Keeper{
                     this.player.body.setVelocity(x*1.35,y,z*1.35);
                   }
 
-                  if(this.Jump && this.player.position.y<=4){
+                /*  if(this.Jump && this.player.position.y<5 && (this.saveDirection=='Left' || this.saveDirection=='Right')){
+                    //mid-high shot 
+                  //  this.player.body.setVelocity(7*diveDirection.x,7,7*diveDirection.z);
 
-                    //for example do right dive implement left afterwards
-                      if((this.playerTurn.x && this.playerTurn.z) >= 0){
-                        //right
-                       this.player.body.setVelocity(-6,6,0);
+                    //TODO: low shot
 
-                        //left
-                      //  this.player.body.setVelocity(6,6,0);
 
-                      }
-
-                      if((this.playerTurn.x && this.playerTurn.z) < 0){
-                        //right                 
-                        this.player.body.setVelocity(6,6,0);
-
-                        //left
-                     //   this.player.body.setVelocity(-6,6,0);
-                      }
-
-                      if(this.playerTurn.x < 0 && this.playerTurn.z > 0){
-                        //right
-                        this.player.body.setVelocity(0,6,-6);
-
-                        //left
-                    //    this.player.body.setVelocity(0,6,6);
-
-                      }
-
-                      if(this.playerTurn.x > 0 && this.playerTurn.z < 0){
-                        //right
-                       this.player.body.setVelocity(0,6,6);
-
-                        //left
-                  //      this.player.body.setVelocity(0,6,-6);
-
-                      }
-
-                   }
+                    
+                   }*/
                   }
                 
-                  if(this.player.children[1]!==director){
+                  if(this.player.children[1]!==this.director){
                     if(this.keyboard._isPaused===false){
                      setTimeout(() => { 
                        this.keyboard._isPaused=true;
@@ -438,21 +437,49 @@ export class Keeper{
                 }
           
             })
-
-            if(this.shoot && this.ball.position.y<=4 && (this.distBall<=4.5 && this.distBall>=2.0) && (dotP>=0.50)){ 
+              //if player is in range and kicks the ball automatically assume he touched it
+              // TODO: for shooting and Passing ensure keeper is not in the states where they are holding the ball
+            if(this.shoot && this.ball.position.y<=4 && (this.distBall<=4.5 && this.distBall>=2.0) && (dotP>=0.40)){ 
 
                 this.ball.body.setVelocity(0,0,0);
                 this.ball.body.setAngularVelocity(0,0,0);
 
                 this.ball.body.applyImpulse({x:this.playerTurn.x*randShotMod,y:randYMod,z:this.playerTurn.z*randShotMod},{x:0,y:0,z:0});
+
+                this.team.lastTouched=true;
+                this.team.opponent.lastTouched=false;
+                scene.ball.possessorTeamClass=this.team;
+                scene.ball.possessorTeam=scene.ball.possessorTeamClass.teamName;
+                scene.ball.possessorClass=this;
+                scene.ball.possessor=scene.ball.possessorClass.playerName;
+
+                this.ball.userData.isKicked=true;
+                setTimeout(()=>{
+               this.ball.userData.isKicked=false;
+               },1500);
+            //   console.log('Possessor:',scene.ball.possessor);
+            //   console.log('PossessorTeam:',scene.ball.possessorTeam);  
               }
 
-              if(this.pass &&this.ball.position.y<=4 && (this.distBall<=4.5 && this.distBall>=2.0) && (dotP>=0.50)){
+              if(this.pass &&this.ball.position.y<=4 && (this.distBall<=4.5 && this.distBall>=2.0) && (dotP>=0.40)){
                 this.ball.body.setVelocity(0,0,0);
                 this.ball.body.setAngularVelocity(0,0,0);
                      
                 this.ball.body.applyImpulse({x:this.playerTurn.x*randPassMod,y:0,z:this.playerTurn.z*randPassMod},{x:0,y:0,z:0});
-              
+
+                this.team.lastTouched=true;
+                this.team.opponent.lastTouched=false;
+                scene.ball.possessorTeamClass=this.team;
+                scene.ball.possessorTeam=scene.ball.possessorTeamClass.teamName;
+                scene.ball.possessorClass=this;
+                scene.ball.possessor=scene.ball.possessorClass.playerName;
+
+                this.ball.userData.isKicked=true;
+                setTimeout(()=>{
+                this.ball.userData.isKicked=false;
+                 },1500);
+               //  console.log('Possessor:',scene.ball.possessor);
+                // console.log('PossessorTeam:',scene.ball.possessorTeam);  
                   }
               
             }
@@ -497,7 +524,6 @@ export class Keeper{
               this.leftLeg.position.copy(pos)
               this.leftLeg.position.y=pos.y+0.3;
               this.leftLeg.rotation.copy(child.rotation)
-              this.leftLeg.body.setBounciness(0.05);
               this.leftLeg.body.needUpdate = true
               }
             if (this.rightLeg && this.rightLeg.body) {
@@ -506,7 +532,6 @@ export class Keeper{
               this.rightLeg.position.copy(pos)
               this.rightLeg.position.y=pos.y+0.3;
               this.rightLeg.rotation.copy(child.rotation)
-              this.rightLeg.body.setBounciness(0.05);
               this.rightLeg.body.needUpdate = true
               }
         
@@ -516,7 +541,6 @@ export class Keeper{
                 this.leftFoot.position.copy(pos)
                 this.leftFoot.position.y=pos.y+0.05
                 this.leftFoot.rotation.copy(this.player.rotation);
-                this.leftFoot.body.setBounciness(0.05);
                 this.leftFoot.body.needUpdate = true
                 }
               if (this.rightFoot && this.rightFoot.body) {
@@ -525,7 +549,6 @@ export class Keeper{
                 this.rightFoot.position.copy(pos);
                 this.rightFoot.position.y=pos.y+0.05;
                 this.rightFoot.rotation.copy(this.player.rotation);
-                this.rightFoot.body.setBounciness(0.05);
                 this.rightFoot.body.needUpdate = true
                 }
         
@@ -557,98 +580,172 @@ export class Keeper{
           renderComponent.matrix.copy(entiity.worldMatrix);
       }
          _updateYuka(scene){
-          if(this.yukaPlayer&&this.player&&this.yukaObstacle){
-            const SeekWBall= this.yukaPlayer.steering.behaviors[0];
-            const PursueBall=this.yukaPlayer.steering.behaviors[1]; 
-            const AvoidPlayer=this.yukaPlayer.steering.behaviors[2]; 
-            const ArriveBall=this.yukaPlayer.steering.behaviors[3];
-            const TendPost=this.yukaPlayer.steering.behaviors[4];
+          if(this.yukaPlayer&&this.player && this.yukaObstacle){
+
+
+            const TendPost=this.yukaPlayer.steering.behaviors[1];
+            const ResetPos= this.yukaPlayer.steering?.behaviors[2];
 
             const yukaSpeed=this.yukaPlayer.getSpeed();
             this.yukaPlayer.position.copy(this.player.position);
             this.yukaObstacle.position.copy(this.player.position);
-            this.yukaPlayer.updateOrientation=false;
-            this.yukaPlayer.lookAt(this.ball.position);
-            AvoidPlayer.active=true;
-           // SeekWBall.active=true;
-          //  console.log('yuka speed',yukaSpeed);
-            if(this.player.userData.isPlayerControlled==false){
-              //TODO:set animation based on speed
-              if(scene.isGkYukaBehavior==true){
-           // console.log(`GK ${this.team.teamName} (${this.yukaPlayer.position.x},${this.yukaPlayer.position.y},${this.yukaPlayer.position.z})`)
 
-               // this._distanceCheck(SeekWBall,PursueBall,ArriveBall,TendPost);
+          if(this.player.userData.isPlayerControlled==false && ResetPos?.active!=true){
+            
+              this.stateMachine.update(scene);
+              if(scene.isyukaBehavior==true){
 
-               if((TendPost.active== true)){
+
+                if(!this.stateMachine.in('saveBall')){
+                  this._speedToAnimations(yukaSpeed);
+                }
+              // this._distanceCheck(scene);
+                //use here for passing shootung descision making
+
+               if(TendPost.weight==1 && (TendPost.target == scene.tendPositionTeam1GK || TendPost.target == scene.tendPositionTeam2GK )){
+                this.yukaPlayer.updateOrientation=false;
+                this.yukaPlayer.lookAt({x:this.ball.position.x,y:3,z:this.ball.position.z});
+               }
+               if(TendPost.weight==1){
                 this.player.body.setVelocity(this.yukaPlayer.velocity.x,this.player.body.velocity.y,this.yukaPlayer.velocity.z);
                }
+
+               else{
+                if(!this.stateMachine.in('saveBall')){
+                this.yukaPlayer.rotation.set(0,0,0,1);
+                this.player.body.setVelocity(0,0,0);
               }
-        
-             
-              
-                       
-              this.player.matrixAutoUpdate=false;   
-             
+              }
+              }  
+             else if(scene.isyukaBehavior==false){
+              if(this.stateMachine.in('goalKick')){
+                if(this.player.distBall>7){
+                  this._speedToAnimations(yukaSpeed);
+                }
+
+               // this.yukaPlayer.updateOrientation=true;
+                this.stateMachine.update(scene);
+                this.player.body.setVelocity(this.yukaPlayer.velocity.x,this.player.body.velocity.y,this.yukaPlayer.velocity.z);
+              }
+              else{
+                this.yukaPlayer.updateOrientation=false;
+                this.yukaPlayer.rotation.set(0,0,0,1);
+                this.player.body.setVelocity(0,0,0);
+              }
+
+              }      
+              this.player.matrixAutoUpdate=false;     
+            }
+            else if(ResetPos?.active==true){
+              this.yukaPlayer.updateOrientation=true;
+              this.stateMachine.update(scene);
             }
             else{
-              SeekWBall.active=false;
-              PursueBall.active=false;
-              ArriveBall.active=false;
               this.player.matrixAutoUpdate=true;
             }
           }
          }
 
+         _hasArrived(resetPosition,scene){
+          const distToReset= this.player.position.distanceTo(resetPosition?.target);
+          
 
-         
-
-      _distanceCheck(SeekWBall,PursueBall,ArriveBall,TendPosition){
-
-        //Put Distance Criteria for GK
-
-      /*  if(this.distBall<=6){
-          SeekWBall.active=true;
-          PursueBall.active=false;
-          ArriveBall.active=true;
-          this.yukaPlayer.maxSpeed=3.5;
-    
-          if(this.player.anims.current=='idle'||this.player.anims.current=='soccer_sprint'){
-            this.player.anims.play('jog_forward');
+          if(distToReset<=2.5){
+            this.ResetDone= true;
+        
           }
+          if (distToReset>2.5){
+            this.ResetDone=false;
+          }
+         } 
+        _speedToAnimations(speed){
+          if(speed<0.5){
+            if(this.player.anims.current!=='gk_idle_no_ball'){
+              this.player.anims.play('gk_idle_no_ball');
+            }
+          }
+           if(speed>=0.5 && speed<4){
+            if(this.player.anims.current!=='jog_forward'){
+              this.player.anims.play('jog_forward');
+            }
+          }
+          if(speed>=4){
+            if(this.player.anims.current!=='soccer_sprint'){
+              this.player.anims.play('soccer_sprint');
+            }
+          }
+        }                                                            
+        
+
+      _distanceCheck(scene){
+   //console.log(this.team.teamName,this.player.name,this.distBall);
+  
+   //keeper possesor
+   if(scene.ball.possessorClass==this && scene.ball.possessorTeamClass==this.team){
+   
+  }
+  //keeper not possessor
+  else if(scene.ball.possessorClass!=this && scene.ball.possessorTeamClass==this.team){
+   
+  }
+
+  //opponent
+  else if(scene.ball.possessorClass!=this && scene.ball.possessorTeamClass!=this.team){
+  
+  }
+
+
+      /*  const velocity= this.ball.body.velocity;
+        const speed= Math.sqrt((velocity.x**2)+(velocity.z**2))
+      //  console.log("Ball veloity",velocity);
+       // console.log("Ball Speed",speed);            
+        let offsideLineToBall,opponentX,offsideLineToOpponentPossessor
+        if(scene.ball.possessorTeamClass !=this.team){
+         offsideLineToBall= Math.abs(this.ball.position.x)-Math.abs(this.team.OFSLposx);
+         opponentX=scene.ball.possessorClass.player.position.x;
+         offsideLineToOpponentPossessor=Math.abs(opponentX)-Math.abs(this.team.OFSLposx);
+
+       // console.log('OffsideLine X',this.team.OFSLposx)
+       // console.log(this.team.teamName,"Ball Offside",offsideLineToBall);
+       // console.log(this.team.teamName,'Opponent Offside',offsideLineToOpponentPossessor);
+
+       if(offsideLineToBall>0 && offsideLineToOpponentPossessor>0 ){
+        //determine if teammate can reach the attacker  (distBall for teammate is less than 10)
+
+        //determine if the ball is too fast and/or too far for the attacker (distBall for opponent possessor >15 )
+        // all or some are true GK intercept  else remain in tendState
+      
+      }  
+     else if(offsideLineToBall >0){
+        if(this.distBall< 50 && this.distBall>20){
+        if(!this.stateMachine.in('interceptBall')){ 
+          this.stateMachine.changeTo('interceptBall');
+         }
         }
-    
-        //close control seek behavior
-        if(this.distBall>6&&this.distBall<10){
-          SeekWBall.active=true;
-          PursueBall.active=false;
-          this.yukaPlayer.maxSpeed=3.5;
-    
-          if(this.player.anims.current=='idle'||this.player.anims.current=='soccer_sprint'){
-            this.player.anims.play('jog_forward');
-          }
+      }
+
+      else{
+        if(!this.stateMachine.in('tendGoal')){ 
+          this.stateMachine.changeTo('tendGoal');
+         }
+      }
+      
         }
-    
-        //Seek Behavior starts here
-        if(this.distBall>=10&&this.distBall<15.0){
-          SeekWBall.active=true;
-          PursueBall.active=false;
-          this.yukaPlayer.maxSpeed=4.5;
-    
-          if(this.player.anims.current=='idle'|| this.player.anims.current=='soccer_sprint'){
-            this.player.anims.play('jog_forward');
-          }
+        else{
+          if(!this.stateMachine.in('tendGoal')){ 
+            this.stateMachine.changeTo('tendGoal');
+           }
         }
-    
-        //Pursuit Behavior Starts here
-        if(this.distBall>=15 && this.distBall<40){
-          SeekWBall.active=false;
-          PursueBall.active=true;
-          this.yukaPlayer.maxSpeed=6;
-          if(this.player.anims.current=='idle'|| this.player.anims.current=='jog_forward'){
-            this.player.anims.play('soccer_sprint');
-          }
-    
-         }*/
+        */
+      }
+
+      
+      postTrack(scene){
+        if(this.post.name==this.player.userData.postassignment){
+          this.distPost=this.player.position.distanceTo(this.post.position);
+          this.player.userData.distPost=this.distPost;
+        }
+        
       }
 
 

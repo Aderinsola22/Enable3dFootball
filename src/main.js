@@ -5,6 +5,6 @@ import { Project,PhysicsLoader } from 'enable3d'
 const config= {scenes: [MatchScene], maxSubSteps: 4};
 window.addEventListener('DOMContentLoaded', async () => {
 
-    PhysicsLoader('/ammo',()=> new Project(config));
+    PhysicsLoader('./ammo',()=> new Project(config));
     
    });

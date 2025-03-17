@@ -32,16 +32,15 @@ export class Post{
         this.post.body.ammo.setRestitution(0.5)
 
         goalWall.body.setCollisionFlags(1);
-        goalWall.body.setRestitution(1);
+        goalWall.body.setRestitution(0.05);
  
         goalWall.visible=false;
 
         this.postclone=SkeletonUtils.clone(target);
-
     }
 
     _update(){
-        
+       
     }
 
 }
