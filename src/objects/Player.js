@@ -1,9 +1,6 @@
-import {Scene3D,ExtendedObject3D ,THREE } from 'enable3d'
-import { MatchScene } from '../core/MatchScene';
+import {ExtendedObject3D ,THREE } from 'enable3d'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {OutFieldStates} from '../statemachine/OutFieldStates.js';
-import {Team} from './Team.js';
-import {FBXLoader} from 'three/examples/jsm/loaders/FBXLoader.js';
 import { Keyboard } from '@yandeu/keyboard';
 import { GLTFLoader } from 'three/examples/jsm/Addons.js';
 import * as YUKA from 'yuka';
@@ -16,22 +13,48 @@ export class Player{
         this.player=null;
         this.posName=posName;
         this.playerName=playerName;
-        this.keyboard = new Keyboard();
         this.animations=null;
         this.ball=ball;
         this.distBall=null;
+        this.xDistBall=null;
         this.distPost=null;
         this.isPlayerControlled=false;
         this.yukaPlayer= new YUKA.Vehicle();
         this.yukaObstacle= new YUKA.GameEntity();
         this.statAttr={};
         this.team=team;
+        this.framecounter=0;
+        this.powerBar=document.querySelector('.power-bar-fill');
+        this.powerBarFill=0;
+        this.powerBarFillSpeed=0.75;
+        this.powerBarMaxFill=100;
+        this.currKey=null;
+        this.finalKey=null;
+        this.directVec=new THREE.Vector3();
+        this.directBall= new THREE.Vector3();
+        this.sharedPos = new THREE.Vector3();
+        this.sharedBox = new THREE.Box3();
+        this.sharedFootToBall = new THREE.Vector3();
+
         this.animations=['idle','jog_forward','jog_backward','soccer_sprint','header_ip',
         'soccer_pass','standing_up_ip','strike_forward','tackle_ip','tackle_react_ip','throw_in_ip','jumping_header_ip'];
-        
+        this.parts={
+          leftArm:null,
+          rightArm:null,
+          leftHand:null,
+          rightHand:null,
+          leftLeg:null,
+          rightLeg:null,
+          leftFoot:null,
+          rightFoot:null,
+          chest:null,
+          head:null
+       };
     }
     SetPlayer(scene,target,goalassignment,shade,rot,size,offsetX,offsetY,offsetZ){
-
+      if(scene.director.userTeam==this.team){
+         this.keyboard = new Keyboard();
+      }
        target.scale.setScalar(size);
        target.position.y=-2.5;
        this.player= new ExtendedObject3D();
@@ -43,125 +66,129 @@ export class Player{
        this.player.name=this.playerName;
        this.player.userData.parent=this;
        this.player.traverse(c=>{
-         c.shape='convex'
+         c.shape='convex';
 
-       if(c.name==="mixamorig5LeftForeArm"){
-         if(!this.leftArm){
-          this.leftArm=scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
-          this.leftArm.customParams = {c}
-          this.leftArm.userData.bodyPartName='Left Arm'
-          this.leftArm.userData.parent=this;
-          this.leftArm.name='Body Part'
-          this.leftArm.visible=false;
-          this.leftArm.body.needUpdate = true
-         }
-       }
-
-       if(c.name==="mixamorig5LeftHand"){
-        if(!this.leftHand){
-         this.leftHand=scene.physics.add.sphere({x:0,y:-1500,z:0 ,radius:0.35,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
-         this.leftHand.customParams = {c}
-         this.leftHand.userData.bodyPartName='Left Hand'
-         this.leftHand.userData.parent=this;
-        this.leftHand.name='Body Part'
-         this.leftHand.visible=false;
-         this.leftHand.body.needUpdate = true
+        
+         if(c.name==="mixamorig5LeftForeArm"){
+          if(!this.parts.leftArm){
+            this.parts.leftArm = scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.leftArm.customParams = {c}
+            this.parts.leftArm.userData.bodyPartName='Left Arm'
+            this.parts.leftArm.userData.parent=this;
+            this.parts.leftArm.name='Body Part'
+            this.parts.leftArm.visible=false;
+            this.parts.leftArm.body.needUpdate = true;
+          }
         }
-      }
-
-       if(c.name==="mixamorig5RightForeArm"){
-        if(!this.rightArm){
-          this.rightArm=scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
-          this.rightArm.customParams = {c}
-          this.rightArm.userData.bodyPartName='Right Arm'
-          this.rightArm.userData.parent=this;
-          this.rightArm.name='Body Part' 
-          this.rightArm.visible=false;
-          this.rightArm.body.needUpdate = true
+        
+        if(c.name==="mixamorig5LeftHand"){
+          if(!this.parts.leftHand){
+            this.parts.leftHand = scene.physics.add.sphere({x:0,y:-1500,z:0 ,radius:0.35,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.leftHand.customParams = {c}
+            this.parts.leftHand.userData.bodyPartName='Left Hand'
+            this.parts.leftHand.userData.parent=this;
+            this.parts.leftHand.name='Body Part'
+            this.parts.leftHand.visible=false;
+            this.parts.leftHand.body.needUpdate = true
+          }
         }
-       }
-
-       if(c.name==="mixamorig5RightHand"){
-        if(!this.rightHand){
-          this.rightHand=scene.physics.add.sphere({x:0,y:-1500,z:0 ,radius:0.35,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
-          this.rightHand.customParams = {c}
-          this.rightHand.userData.bodyPartName='Right Hand'
-          this.rightHand.userData.parent=this;
-        this.rightHand.name='Body Part'
-          this.rightHand.visible=false;
-          this.rightHand.body.needUpdate = true
+        
+        if(c.name==="mixamorig5RightForeArm"){
+          if(!this.parts.rightArm){
+            this.parts.rightArm = scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.rightArm.customParams = {c}
+            this.parts.rightArm.userData.bodyPartName='Right Arm'
+            this.parts.rightArm.userData.parent=this;
+            this.parts.rightArm.name='Body Part'
+            this.parts.rightArm.visible=false;
+            this.parts.rightArm.body.needUpdate = true
+          }
         }
-       }
-
-       if(c.name==="mixamorig5LeftLeg"){
-        if(!this.leftLeg){
-          this.leftLeg=scene.physics.add.box({x:0,y:-1500,z:0 ,width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
-        this.leftLeg.customParams = {c}
-        this.leftLeg.userData.bodyPartName='Left Leg'     
-        this.leftLeg.userData.parent=this;
-        this.leftLeg.name='Body Part'
-        this.leftLeg.visible=false;
-        this.leftLeg.body.needUpdate = true
+        
+        if(c.name==="mixamorig5RightHand"){
+          if(!this.parts.rightHand){
+            this.parts.rightHand = scene.physics.add.sphere({x:0,y:-1500,z:0 ,radius:0.35,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.rightHand.customParams = {c}
+            this.parts.rightHand.userData.bodyPartName='Right Hand'
+            this.parts.rightHand.userData.parent=this;
+            this.parts.rightHand.name='Body Part'
+            this.parts.rightHand.visible=false;
+            this.parts.rightHand.body.needUpdate = true
+          }
         }
-       }
-
-      if(c.name==="mixamorig5RightLeg"){
-        if(!this.rightLeg){
-          this.rightLeg=scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
-        this.rightLeg.customParams = {c}
-         this.rightLeg.userData.bodyPartName='Right Leg'
-         this.rightLeg.userData.parent=this;
-        this.rightLeg.name='Body Part'
-        this.rightLeg.visible=false;
-        this.rightLeg.body.needUpdate = true
+        
+        if(c.name==="mixamorig5LeftLeg"){
+          if(!this.parts.leftLeg){
+            this.parts.leftLeg = scene.physics.add.box({x:0,y:-1500,z:0 ,width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.leftLeg.customParams = {c}
+            this.parts.leftLeg.userData.bodyPartName='Left Leg'     
+            this.parts.leftLeg.userData.parent=this;
+            this.parts.leftLeg.name='Body Part'
+            this.parts.leftLeg.visible=false;
+            this.parts.leftLeg.body.needUpdate = true
+          }
         }
-       }
-
-       if(c.name==="mixamorig5LeftFoot"){
-        if(!this.leftFoot){
-          this.leftFoot=scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.75, height: 0.5, depth: 1,mass:2,collisionFlags:2,collisionGroup:2,collisionMask:4})
-        this.leftFoot.customParams = {c}
-         this.leftFoot.userData.bodyPartName='Left Foot'
-         this.leftFoot.userData.parent=this;
-        this.leftFoot.name='Body Part'
-        this.leftFoot.visible=false;
-        this.leftFoot.body.needUpdate = true
+        
+        if(c.name==="mixamorig5RightLeg"){
+          if(!this.parts.rightLeg){
+            this.parts.rightLeg = scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.5, height: 1.5, depth: 0.35 ,mass:0.5,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.rightLeg.customParams = {c}
+            this.parts.rightLeg.userData.bodyPartName='Right Leg'
+            this.parts.rightLeg.userData.parent=this;
+            this.parts.rightLeg.name='Body Part'
+            this.parts.rightLeg.visible=false;
+            this.parts.rightLeg.body.needUpdate = true
+          }
         }
-       }
-
-       if(c.name==="mixamorig5RightFoot"){
-        if(!this.rightFoot){
-        this.rightFoot=scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.75, height: 0.5, depth: 1,mass:2,collisionFlags:2,collisionGroup:2,collisionMask:4})    
-        this.rightFoot.customParams = {c}
-        this.rightFoot.userData.bodyPartName='Right Foot'
-        this.rightFoot.userData.parent=this;
-        this.rightFoot.name='Body Part'
-        this.rightFoot.visible=false;
-        this.rightFoot.body.needUpdate = true
+        
+        if(c.name==="mixamorig5LeftFoot"){
+          if(!this.parts.leftFoot){
+            this.parts.leftFoot = scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.75, height: 0.5, depth: 1,mass:2,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.leftFoot.customParams = {c}
+            this.parts.leftFoot.userData.bodyPartName='Left Foot'
+            this.parts.leftFoot.userData.parent=this;
+            this.parts.leftFoot.name='Body Part'
+            this.parts.leftFoot.visible=false;
+            this.parts.leftFoot.body.needUpdate = true
+          }
         }
-       }
-       if(c.name==="mixamorig5Spine"){
-        if(!this.chest){
-        this.chest=scene.physics.add.box({x:0,y:-1500,z:0 ,width: 0.75, height: 2, depth: 1,mass:1,collisionFlags:2,collisionGroup:2,collisionMask:4})
-        this.chest.customParams = {c}
-        this.chest.userData.bodyPartName='Chest'
-        this.chest.name='Body Part'
-        this.chest.userData.parent=this;
-        this.chest.visible=false;
-        this.chest.body.needUpdate = true
+        
+        if(c.name==="mixamorig5RightFoot"){
+          if(!this.parts.rightFoot){
+            this.parts.rightFoot = scene.physics.add.box({x:0,y:-1500,z:0 , width: 0.75, height: 0.5, depth: 1,mass:2,collisionFlags:2,collisionGroup:2,collisionMask:4})    
+            this.parts.rightFoot.customParams = {c}
+            this.parts.rightFoot.userData.bodyPartName='Right Foot'
+            this.parts.rightFoot.userData.parent=this;
+            this.parts.rightFoot.name='Body Part'
+            this.parts.rightFoot.visible=false;
+            this.parts.rightFoot.body.needUpdate = true
+          }
         }
-       }
-       if(c.name==="mixamorig5Head"){
-        if(!this.head){
-        this.head=scene.physics.add.sphere({x:0,y:-1500,z:0 ,radius:0.6,mass:1,collisionFlags:2,collisionGroup:2,collisionMask:4})
-        this.head.customParams = {c}
-        this.head.userData.bodyPartName='Head'
-        this.head.name='Body Part'
-        this.head.userData.parent=this;
-        this.head.visible=false;
-        this.head.body.needUpdate = true
+        
+        if(c.name==="mixamorig5Spine"){
+          if(!this.parts.chest){
+            this.parts.chest = scene.physics.add.box({x:0,y:-1500,z:0 ,width: 0.75, height: 2, depth: 1,mass:1,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.chest.customParams = {c}
+            this.parts.chest.userData.bodyPartName='Chest'
+            this.parts.chest.name='Body Part'
+            this.parts.chest.userData.parent=this;
+            this.parts.chest.visible=false;
+            this.parts.chest.body.needUpdate = true
+          }
         }
-       }
+        
+        if(c.name==="mixamorig5Head"){
+          if(!this.parts.head){
+            this.parts.head = scene.physics.add.sphere({x:0,y:-1500,z:0 ,radius:0.6,mass:1,collisionFlags:2,collisionGroup:2,collisionMask:4})
+            this.parts.head.customParams = {c}
+            this.parts.head.userData.bodyPartName='Head'
+            this.parts.head.name='Body Part'
+            this.parts.head.userData.parent=this;
+            this.parts.head.visible=false;
+            this.parts.head.body.needUpdate = true
+          }
+        }
+        
 
        
        })
@@ -212,42 +239,45 @@ export class Player{
       this.yukaObstacle.boundingRadius=2.5;//this.yukaPlayer.boundingRadius;
       this.yukaObstacle.name=this.playerName; 
       this.yukaObstacle.smoother=new YUKA.Smoother(60);
+      
       this.stateMachine=new OutFieldStates(this.yukaPlayer,this,scene);
       this.stateMachine.changeTo('idle');
-      this.initialState=true;
       this.post=scene.scene.getObjectByName(this.player.userData.postassignment);
-   //  console.log(this.yukaPlayer);  
 
-    
+   //  const geometry = new THREE.SphereGeometry(this.yukaObstacle.boundingRadius, 16, 16);
+    //const material = new THREE.MeshBasicMaterial({
+    //    wireframe: true
+    //});
+   //  this.sphere = new THREE.Mesh(geometry, material);
+   // scene.scene.add(this.sphere)
+    this.director=scene.director.directorObj;
+   // console.log(`Player ${this.playerName} of team ${this.team.teamName} created with keyboard controls: ${this.keyboard}`);
     }
 
     _update(scene){
-     this.W= this.keyboard.key('KeyW').isDown; //forward
+     if(this.keyboard && this.keyboard._isPaused==false && this.player.userData.isPlayerControlled){
+      this.W= this.keyboard.key('KeyW').isDown; //forward
      this.A= this.keyboard.key('KeyA').isDown; //left
-     //this.S= this.keyboard.key('KeyS').isDown; //Back
+     this.S= this.keyboard.key('KeyS').isDown; //Back
      this.D= this.keyboard.key('KeyD').isDown; //right
      this.Sprint= this.keyboard.key('ShiftLeft').isDown; //sprint
     this.Jump= this.keyboard.key('Space').isDown; //jump
      this.pass= this.keyboard.key('KeyJ').isDown; //pass/stand tackle
-     this.shoot= this.keyboard.key('KeyK').isDown; //shoot/slide tackle
-     this.changePlayer=this.keyboard.key('KeyL').isDown;//change player
-
-     const randYMod=Math.round(Math.random() * (25 - 0) + 0);
+     this.shoot= this.keyboard.key('KeyK').isDown; //shoot/clear/stand Tackle
+     // H to cross/slide tackle 
+    }
+     let randYMod= 0;
     // const randStraightMod=Math.round(Math.random() * (60 - 10) + 10);
     // const randShortBallMod=Math.round(Math.random() * (30 - 10) + 10);
     // const randLongBallMod=Math.round(Math.random() * (60 - 31) + 31);
-     const randShotMod=Math.round(Math.random() * (60 - 30) + 30);
-     const randPassMod=Math.round(Math.random() * (40 - 10) + 10);
+     let randShotMod=0;
+     let randPassMod=0;
      
-
-
      if(this.player&&this.player.body){
       let acc= 4;
-      const directVec=new THREE.Vector3();
-      this.playerTurn=this.player.getWorldDirection(directVec);
-      const directBall= new THREE.Vector3();
-      directBall.subVectors(this.ball.position,this.player.position).normalize();
-      const dotP=this.playerTurn.dot(directBall);
+      this.playerTurn=this.player.getWorldDirection(this.directVec);
+      this.directBall.subVectors(this.ball.position,this.player.position).normalize();
+      const dotP=this.playerTurn.dot(this.directBall);
       const thetaPlayer = Math.atan2(this.playerTurn.x, this.playerTurn.z)
     //  this.player.body.setVelocity(0,0,0);
       this.player.body.setAngularVelocity(0,0,0);
@@ -255,24 +285,29 @@ export class Player{
         y= this.player.body.velocity.y,
         z= Math.cos(thetaPlayer)*acc
         this.distBall=this.player.position.distanceTo(this.ball.position);
+        this.xDistBall= Math.abs(this.ball.position.x-this.player.position.x);
         this.player.userData.distBall=this.distBall;
         this.player.userData.dotP=dotP;
         this.postTrack(scene);
-        if(this.player.userData.isPlayerControlled==true){
-        //  console.log('dot:',dotP);
-        }
-      // optimiza animation stuttering bug
-     this.director=scene.scene.getObjectByName('Director');
-    if(this.player.children[1]===this.director){
+              this.isPlayerControlled=this.player.userData.isPlayerControlled;
 
-    if(this.keyboard._isPaused === true){
+        if(this.player.userData.isPlayerControlled==true){/*  console.log('dot:',dotP);*/}
+      //  this.sphere.position.copy(this.player.position);
 
-      setTimeout(() => { 
-        this.keyboard._isPaused=false
-        this.keyboard.resume();
-      }, 500);
-    }
-      if(this.keyboard._isPaused === false){
+      // optimize animation stuttering bug
+     
+     const arrow= this?.director?.children[2]?.material?.color;
+     const arrowRed=arrow?.r;
+     const arrowGreen=arrow?.g;
+     const arrowBlue=arrow?.b;
+     const inKickRange= (arrowRed==0 && arrowGreen==0 && arrowBlue==1) && (arrow != null || arrow != undefined) ? true : false;
+     //const inVolleyRange;
+     //const inHeadRange;
+
+    if((this.player.children.includes(this.director) && this.player.userData.isPlayerControlled) && scene.fullTimeCalled!=1 && this.keyboard){
+   //   console.log('inKickRange',inKickRange)
+ 
+
       this.keyboard.on.down('KeyW', keyCode => {
         if(this.Sprint){
           this.player.anims.play('soccer_sprint');
@@ -280,32 +315,37 @@ export class Player{
         else{
           this.player.anims.play('jog_forward');
         }
-    
-    
+  
+        })
+
+         this.keyboard.on.down('KeyS', keyCode => {
+          this.player.anims.play('jog_backward');
         })
   
-        this.keyboard.on.down('ShiftLeft', keyCode => {
+      this.keyboard.on.down('ShiftLeft', keyCode => {
           if(this.W){
-            this.player.anims.play('soccer_sprint');
+            if(this.player.anims.current!=='soccer_sprint'){
+              this.player.anims.play('soccer_sprint');
+            }  
           }
           })
-       //skip for now and fix animation blending for shooting and passing
-       this.keyboard.once.down('KeyK', keyCode => {
 
+      this.keyboard.once.up('KeyK', keyCode => {
+       // this.player.anims.get('thrown_in_ip').reset();
         // for low ball and mid balls
         if(this.stateMachine.previousState== this.stateMachine.get('reset')  && scene.eName=='ThrowIn'){
           this.player.anims.play('throw_in_ip',500,false);
         }
         else{
-
+            this.player.anims.get('strike_forward').reset();  
           this.player.anims.play('strike_forward');
-  
+        
           if(this.Sprint && this.W){
             this.player.anims.get('strike_forward').crossFadeTo(this.player.anims.get('soccer_sprint'),2,true);
     
           }
     
-          if(this.W){
+        else if(this.W){
             this.player.anims.get('strike_forward').crossFadeTo(this.player.anims.get('jog_forward'),2,true);
           }
           else{
@@ -314,28 +354,27 @@ export class Player{
           }
           
         }
-
-        
-
       
         //for very high balls do a header later
 
        
           })
 
-          this.keyboard.once.down('KeyJ', keyCode => {
+      this.keyboard.once.up('KeyJ', keyCode => {
 
             if(this.stateMachine.previousState== this.stateMachine.get('reset') && scene.eName=='ThrowIn'){
               this.player.anims.play('throw_in_ip',500,false);
             }
             else{
               // for low ball and mid balls
+            this.player.anims.get('soccer_pass').reset();  
             this.player.anims.play('soccer_pass');
+
             if(this.Sprint && this.W){
               this.player.anims.get('soccer_pass').crossFadeTo(this.player.anims.get('soccer_sprint'),2,true);
             }
       
-            if(this.W){
+           else if(this.W){
               this.player.anims.get('soccer_pass').crossFadeTo(this.player.anims.get('jog_forward'),2,true);
       
             }
@@ -350,19 +389,28 @@ export class Player{
                 })   
        
 
-                this.keyboard.on.up('KeyW', keyCode => {
+      this.keyboard.on.up('KeyW', keyCode => {
                   this.player.anims.play('idle');
+
+                  if(this.player.anims.current!=='idle'){
+                    this.player.anims.play('idle');
+                  }
+              
                   })  
                   
-                  this.keyboard.once.up('ShiftLeft', keyCode => {
+      this.keyboard.once.up('ShiftLeft', keyCode => {
             
                     if(this.W){
-                      this.player.anims.play('jog_forward');
+                      if(this.player.anims.current!=='jog_forward'){
+                        this.player.anims.play('jog_forward');
+                      }                    
                     }
                     else{
-                      this.player.anims.play('idle');
-                    }
-                    }) 
+                      if(this.player.anims.current!=='idle'){
+                        this.player.anims.play('idle');
+                      }
+                   }
+}) 
             
                     if(this.W){
                       this.player.body.setVelocity(x,y,z);
@@ -372,6 +420,9 @@ export class Player{
                     this.player.body.setAngularVelocityY(acc*1); 
                     
                   }
+                    if(this.S){
+                  this.player.body.setVelocity(-x,y,-z);
+                }
                   if(this.D){
                     this.player.body.setAngularVelocityY(acc*-1);
                   }
@@ -379,54 +430,75 @@ export class Player{
                   if(this.Sprint && this.W){
                       this.player.body.setVelocity(x*1.34,y,z*1.34);
                     }
-         /*        if(this.Jump){
-              //      this.team.lastTouched=false;
- //this.team.opponent.lastTouched=true;
- //scene.ball.possessorTeamClass=this.team.opponent;
- //scene.ball.possessorTeam=scene.ball.possessorTeamClass.teamName;
- //scene.ball.possessorClass=this.team.opponent.teamList?.PL2;
- //scene.ball.possessor=scene.ball.possessorClass.playerName;
- this.ball.body.setVelocity(60,25,-6);
-                  } */
-                  
-      }
-    }
-    if(this.player.children[1]!==this.director){
-     if(this.keyboard._isPaused===false){
-      setTimeout(() => { 
-        this.keyboard._isPaused=true;
-        this.keyboard.pause();
-        this.player.anims.play('idle');
-        }, 1000);
-     }
+                if(this.Jump){
+                 // this.player.body.setVelocity(0,0,1.5);
+                 // this.ball.body.setVelocity(20,10,0);   
+                  //this.ball.body.setAngularVelocity(0,10,0);
+                }
+              //TODO: when shoot or pass is being pressed but not at the same time fill the bar if press shoot then pass vie versa as bar fills instantly reset to 0 and when neither is pressed reset to 0
+              
+              if(this.shoot && this.pass){
+                this.powerBarFill=0;
+                this.currKey=null;
+                this.powerBar.style.width=`${this.powerBarFill}%`;
+              }
 
-      
-    }
-     //turn off player control and switch on yuka controls and vice versa using character switcher key
-    this.keyboard.once.down('KeyL', keyCode => {
-     
-        if(this.keyboard._isPaused===false){
-          setTimeout(() => { 
-          this.keyboard._isPaused=true;
-          this.keyboard.pause();
-          this.player.anims.play('idle');
-          }, 1000);
+              else if(this.shoot || this.pass) {
+                const newKey = this.shoot ? 'shoot' : 'pass'; 
+                if(this.currKey !== newKey){
+                  this.powerBarFill=0;
+                  this.currKey = newKey;
+                }
+                if(this.powerBarFill< this.powerBarMaxFill){
+                    this.powerBarFill += this.powerBarFillSpeed;
+                    this.powerBar.style.width=`${this.powerBarFill}%`;
+                  }
+              }   
+              else if(!this.shoot && !this.pass){
+                    if(this.powerBarFill>9){
+                    //  console.log('power bar fill',this.powerBarFill);
+                     if(inKickRange){
+                      this.finalKey=this.currKey
+                    //  console.log('last pressed key',this.finalKey);
+                    } 
+                    randShotMod=19+(this.powerBarFill/100)*(59-19);
+                    randPassMod=9+(this.powerBarFill/100)*(44-9);
+                    let randMin=THREE.MathUtils.randInt(0,7);
+                    if (this.powerBarFill < 60 ) {
+                       if(this.finalKey === 'shoot'){
+                        randYMod= THREE.MathUtils.randFloat(0, 0.99) + THREE.MathUtils.randInt(randMin,24*0.65);
+                        //rewrite with randshot formula if above does not work
+                       }
+                       else if(this.finalKey === 'pass'){
+                        randYMod= THREE.MathUtils.randFloat(0, 0.99) + THREE.MathUtils.randInt(0,4);
+                        //rewrite with randshot formula if above does not work
+                       }
+                    }
 
-        }
-        else{
-          setTimeout(() => { 
-          this.keyboard._isPaused=false;
-          this.keyboard.resume();
-        }, 1000);
-        }
-  
-    })
+                   else if (this.powerBarFill >= 60 ) {
+                      if(this.finalKey === 'shoot'){
+                        randYMod=THREE.MathUtils.randFloat(0, 0.99) + THREE.MathUtils.randInt(randMin,24)
+                        scene.ball.shotY=randYMod;
+                        
+                      }
+                      else if(this.finalKey === 'pass'){
+                        randYMod= THREE.MathUtils.randFloat(0, 0.99) + THREE.MathUtils.randInt(0,4);
+                      }
+                   }
+
+                    }
+                    this.powerBarFill=0;
+                    this.currKey=null;
+                    this.powerBar.style.width=`${this.powerBarFill}%`;
+                  }          
+    }
+ 
 
   // for now implement normal shooting based on player direction then later updates implement proper torque
    
-
-   if(this.shoot && this.ball.position.y<=4 && (this.distBall<=4.5 && this.distBall>=2.0) && (dotP>=0.40)){ 
+   if(this.finalKey==='shoot' && this.ball.position.y<=4 && inKickRange && !this.ball.userData.isKicked /*&& scene.ball.possessorClass===this*/ && !scene.field.eventHappened){ 
     //always reset forces to ensure previous force does not mulitply the new force
+    this.finalKey=null;
     this.ball.body.setVelocity(0,0,0);
     this.ball.body.setAngularVelocity(0,0,0);
 
@@ -446,6 +518,12 @@ export class Player{
     scene.ball.shotX=this.playerTurn.x*randShotMod;
     scene.ball.shotY=randYMod;
     scene.ball.shotZ=this.playerTurn.z*randShotMod;
+
+  
+  //  console.log('shotX',scene.ball.shotX);
+  //  console.log('shotY',scene.ball.shotY);
+  //  console.log('shotZ',scene.ball.shotZ);
+
     const opponentGk=this.team.opponent.teamList.GK;
 
     this.team.lastTouched=true;
@@ -453,25 +531,18 @@ export class Player{
     scene.ball.possessorClass=null;
     scene.ball.possessor=null;
 
-    opponentGk.stateMachine.changeTo('saveBall')
+    if(!opponentGk.stateMachine.in('saveBall')||opponentGk.stateMachine.previousState===opponentGk.stateMachine.get('saveBall')){
+    opponentGk.stateMachine.changeTo('saveBall');
+    }
+    this.ball.userData.isKicked=true;
 
     this.ball.body.applyImpulse({x:scene.ball.shotX,y:scene.ball.shotY,z:scene.ball.shotZ},{x:0,y:0,z:0});
-  //  console.log(this.team.opponent.teamList.GK.saveDirection);
 
-  //  console.log("Y:",randYMod);
- //   console.log("X or Z",randShotMod);
-
-
-
-    this.ball.userData.isKicked=true;
     setTimeout(()=>{
     this.ball.userData.isKicked=false;
   },1500);
 
-    // experimental special shots- use force, torque, gravity, impulse and settimeout (WIP)
-
-
- 
+// experimental special shots- use force, torque, gravity, impulse and settimeout (WIP) 
 // testing random things
  /*   
    // this.ball.body.applyForce(15,0,10);
@@ -511,7 +582,8 @@ export class Player{
   }
 
 
- if(this.pass &&this.ball.position.y<=4 && (this.distBall<=4.5 && this.distBall>=2.0) && (dotP>=0.40)){
+ if(this.finalKey==='pass' &&this.ball.position.y<=4 && inKickRange && !this.ball.userData.isKicked  /*&& scene.ball.possessorClass===this*/ && !scene.field.eventHappened){
+  this.finalKey=null;
   this.ball.body.setVelocity(0,0,0);
   this.ball.body.setAngularVelocity(0,0,0);
    
@@ -525,8 +597,13 @@ export class Player{
     //aerial pass/cross/longball with curve-  use force,torque and gravity and settimeout; set x and z to extrapolate based on player direction and set y to give height
 
     // straight pass/cross/longball without curve-  use force only x and z have same multiplier y gives height
-    this.ball.body.applyImpulse({x:this.playerTurn.x*randPassMod,y:0,z:this.playerTurn.z*randPassMod},{x:0,y:0,z:0});
-  //  console.log("X or Z",randPassMod);
+    const passX=this.playerTurn.x*randPassMod;
+    const passY=randYMod;
+    const passZ=this.playerTurn.z*randPassMod;
+  //  console.log('PassX',passX);
+  //  console.log('PassY',passY);
+  //  console.log('PassZ',passZ);
+    this.ball.body.applyImpulse({x:passX,y:passY,z:passZ},{x:0,y:0,z:0});
 
   this.team.lastTouched=true;
   this.team.opponent.lastTouched=false;
@@ -556,91 +633,172 @@ export class Player{
 
     }  
     
-    if (this.leftArm && this.leftArm.body) {
-      const child = this.leftArm.customParams.c
-      const pos = child.getWorldPosition(new THREE.Vector3());
-      this.leftArm.position.copy(pos)
-      this.leftArm.rotation.copy(child.rotation)
-      this.leftArm.body.needUpdate = true
-      }
+if (this.parts.leftArm && this.parts.leftArm.body) {
+  const child = this.parts.leftArm.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.parts.leftArm.position.copy(this.sharedPos);
+  this.parts.leftArm.rotation.copy(child.rotation);
+  this.parts.leftArm.body.needUpdate = true;
+  this.parts.leftArm.userData.Box = this.sharedBox.setFromObject(this.parts.leftArm);
+}
 
-    if (this.rightArm && this.rightArm.body) {
-      const child = this.rightArm.customParams.c
-      const pos = child.getWorldPosition(new THREE.Vector3())
-      this.rightArm.position.copy(pos)
-      this.rightArm.rotation.copy(child.rotation)
-      this.rightArm.body.needUpdate = true
-      }
-    if (this.leftHand && this.leftHand.body) {
-      const child = this.leftHand.customParams.c
-      const pos = child.getWorldPosition(new THREE.Vector3());
-      pos.y=pos.y-0.3;
-      this.leftHand.position.copy(pos)
-      this.leftHand.rotation.copy(child.rotation)
-      this.leftHand.body.needUpdate = true
-      }
+if (this.parts.rightArm && this.parts.rightArm.body) {
+  const child = this.parts.rightArm.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.parts.rightArm.position.copy(this.sharedPos);
+  this.parts.rightArm.rotation.copy(child.rotation);
+  this.parts.rightArm.body.needUpdate = true;
+  this.parts.rightArm.userData.Box = this.sharedBox.setFromObject(this.parts.rightArm);
+}
 
-    if (this.rightHand && this.rightHand.body) {
-      const child = this.rightHand.customParams.c
-      const pos = child.getWorldPosition(new THREE.Vector3())
-      pos.y=pos.y-0.3;
-      this.rightHand.position.copy(pos)
-      this.rightHand.rotation.copy(child.rotation)
-      this.rightHand.body.needUpdate = true
-      }
-    if (this.leftLeg && this.leftLeg.body) {
-      const child = this.leftLeg.customParams.c
-      const pos = child.getWorldPosition(new THREE.Vector3())
-      this.leftLeg.position.copy(pos)
-      this.leftLeg.position.y=pos.y+0.3;
-      this.leftLeg.rotation.copy(child.rotation)
-      this.leftLeg.body.needUpdate = true
-      }
-    if (this.rightLeg && this.rightLeg.body) {
-      const child = this.rightLeg.customParams.c
-      const pos = child.getWorldPosition(new THREE.Vector3())
-      this.rightLeg.position.copy(pos)
-      this.rightLeg.position.y=pos.y+0.3;
-      this.rightLeg.rotation.copy(child.rotation)
-      this.rightLeg.body.needUpdate = true
-      }
+if (this.parts.leftHand && this.parts.leftHand.body) {
+  const child = this.parts.leftHand.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.sharedPos.y -= 0.3;
+  this.parts.leftHand.position.copy(this.sharedPos);
+  this.parts.leftHand.rotation.copy(child.rotation);
+  this.parts.leftHand.body.needUpdate = true;
+  this.parts.leftHand.userData.Box = this.sharedBox.setFromObject(this.parts.leftHand);
+}
 
-      if (this.leftFoot && this.leftFoot.body) {
-        const child = this.leftFoot.customParams.c
-        const pos = child.getWorldPosition(new THREE.Vector3())
-        this.leftFoot.position.copy(pos)
-        this.leftFoot.position.y=pos.y+0.05
-        this.leftFoot.rotation.copy(this.player.rotation);
-        this.leftFoot.body.needUpdate = true
-        }
-      if (this.rightFoot && this.rightFoot.body) {
-        const child = this.rightFoot.customParams.c
-        const pos = child.getWorldPosition(new THREE.Vector3())
-        this.rightFoot.position.copy(pos);
-        this.rightFoot.position.y=pos.y+0.05;
-        this.rightFoot.rotation.copy(this.player.rotation);
-        this.rightFoot.body.needUpdate = true;
-        }
-     if (this.chest && this.chest.body) {
-          const child = this.chest.customParams.c
-          const pos = child.getWorldPosition(new THREE.Vector3())
-          this.chest.position.copy(pos)
-          this.chest.rotation.copy(this.player.rotation)
-          this.chest.body.needUpdate = true;
-          } 
-    if (this.head && this.head.body) {
-      const child = this.head.customParams.c
-      const pos = child.getWorldPosition(new THREE.Vector3())
-      this.head.position.copy(pos);
-      this.head.position.y=pos.y+0.3;
-      this.head.rotation.copy(this.player.rotation)
-      this.head.body.needUpdate = true
-      }
+if (this.parts.rightHand && this.parts.rightHand.body) {
+  const child = this.parts.rightHand.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.sharedPos.y -= 0.3;
+  this.parts.rightHand.position.copy(this.sharedPos);
+  this.parts.rightHand.rotation.copy(child.rotation);
+  this.parts.rightHand.body.needUpdate = true;
+  this.parts.rightHand.userData.Box = this.sharedBox.setFromObject(this.parts.rightHand);
+}
+
+if (this.parts.leftLeg && this.parts.leftLeg.body) {
+  const child = this.parts.leftLeg.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.sharedPos.y += 0.3;
+  this.parts.leftLeg.position.copy(this.sharedPos);
+  this.parts.leftLeg.rotation.copy(child.rotation);
+  this.parts.leftLeg.body.needUpdate = true;
+  this.parts.leftLeg.userData.Box = this.sharedBox.setFromObject(this.parts.leftLeg);
+}
+
+if (this.parts.rightLeg && this.parts.rightLeg.body) {
+  const child = this.parts.rightLeg.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.sharedPos.y += 0.3;
+  this.parts.rightLeg.position.copy(this.sharedPos);
+  this.parts.rightLeg.rotation.copy(child.rotation);
+  this.parts.rightLeg.body.needUpdate = true;
+  this.parts.rightLeg.userData.Box = this.sharedBox.setFromObject(this.parts.rightLeg);
+}
+
+if (this.parts.leftFoot && this.parts.leftFoot.body) {
+  const child = this.parts.leftFoot.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.sharedFootToBall.copy(this.ball.position).sub(this.parts.leftFoot.position);
+
+  if (this.sharedFootToBall.length() < scene.ball.radius + 0.05) {
+    this.sharedFootToBall.setLength(scene.ball.radius + 0.05);
+    this.parts.leftFoot.position.copy(this.ball.position).sub(this.sharedFootToBall);
+  } else {
+    this.parts.leftFoot.position.copy(this.sharedPos);
+  }
+
+  this.parts.leftFoot.position.y = this.sharedPos.y + 0.05;
+  this.parts.leftFoot.rotation.copy(this.player.rotation);
+  this.parts.leftFoot.body.needUpdate = true;
+  this.parts.leftFoot.userData.Box = this.sharedBox.setFromObject(this.parts.leftFoot);
+}
+
+if (this.parts.rightFoot && this.parts.rightFoot.body) {
+  const child = this.parts.rightFoot.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.sharedFootToBall.copy(this.ball.position).sub(this.parts.rightFoot.position);
+
+  if (this.sharedFootToBall.length() < scene.ball.radius + 0.05) {
+    this.sharedFootToBall.setLength(scene.ball.radius + 0.05);
+    this.parts.rightFoot.position.copy(this.ball.position).sub(this.sharedFootToBall);
+  } else {
+    this.parts.rightFoot.position.copy(this.sharedPos);
+  }
+
+  this.parts.rightFoot.position.y = this.sharedPos.y + 0.05;
+  this.parts.rightFoot.rotation.copy(this.player.rotation);
+  this.parts.rightFoot.body.needUpdate = true;
+  this.parts.rightFoot.userData.Box = this.sharedBox.setFromObject(this.parts.rightFoot);
+}
+
+if (this.parts.chest && this.parts.chest.body) {
+  const child = this.parts.chest.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.parts.chest.position.copy(this.sharedPos);
+  this.parts.chest.rotation.copy(this.player.rotation);
+  this.parts.chest.body.needUpdate = true;
+  this.parts.chest.userData.Box = this.sharedBox.setFromObject(this.parts.chest);
+}
+
+if (this.parts.head && this.parts.head.body) {
+  const child = this.parts.head.customParams.c;
+  child.getWorldPosition(this.sharedPos);
+  this.sharedPos.y += 0.3;
+  this.parts.head.position.copy(this.sharedPos);
+  this.parts.head.rotation.copy(this.player.rotation);
+  this.parts.head.body.needUpdate = true;
+  this.parts.head.userData.Box = this.sharedBox.setFromObject(this.parts.head);
+}
+
       
      this._updateYuka(scene);
+    
+   //  this._throttleColllision(scene);
+     
     }
 
-    
+ 
+_throttleColllision(scene){
+  const updateRate= 75;
+  this.framecounter++;
+
+  if(this.framecounter>=updateRate){
+
+  const opponentNearby= this._getNearbyOpponents();
+  this._checkKinematicCollision(scene, this.parts.leftArm, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.rightArm, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.leftHand, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.rightHand, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.leftLeg, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.rightLeg, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.leftFoot, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.rightFoot, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.chest, opponentNearby);
+  this._checkKinematicCollision(scene, this.parts.head, opponentNearby);
+  
+
+    this.framecounter=0;
+  }
+}    
+
+_throttleColllisionYuka(scene){
+  const updateRate= 70;
+  this.framecounter++;
+
+  if(this.framecounter>=updateRate){
+
+  const objNearby= this._getAllNearby(scene);
+  this._checkKinematicCollisionYuka(scene, this.parts.leftArm, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.rightArm, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.leftHand, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.rightHand, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.leftLeg, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.rightLeg, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.leftFoot, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.rightFoot, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.chest, objNearby);
+  this._checkKinematicCollisionYuka(scene, this.parts.head, objNearby);
+  
+
+    this.framecounter=0;
+  }
+}  
 
 _setAddManager(yukaEntityManager){
     this.entityManager=yukaEntityManager;
@@ -656,19 +814,20 @@ yukaSync(entiity,renderComponent){
         
     if(this.yukaPlayer&&this.player&& this.yukaObstacle){
 
-    
+ 
 
       const SeekWBall= this.yukaPlayer.steering.behaviors[0];
       const PursueBall=this.yukaPlayer.steering.behaviors[1]; 
       const ArriveBall=this.yukaPlayer.steering.behaviors[3];
-      const ResetPos= this.yukaPlayer.steering?.behaviors[5];
+      const ResetPos= this.yukaPlayer.steering.behaviors[5];
 
       const yukaSpeed=this.yukaPlayer.getSpeed();
       this.yukaPlayer.position.copy(this.player.position);
       this.yukaObstacle.position.copy(this.player.position);
+      
+     // console.log(this.yukaPlayer.steering.behaviors);
  
- 
-     if(this.player.userData.isPlayerControlled==false && ResetPos?.active!=true){
+     if(this.player.userData.isPlayerControlled==false && ResetPos.active!=true){
       this.stateMachine.update(scene);
 
       if(scene.isyukaBehavior==true){
@@ -697,40 +856,59 @@ yukaSync(entiity,renderComponent){
       this.player.matrixAutoUpdate=false;   
      
     }
-    else if(ResetPos?.active==true){
+    else if(ResetPos.active==true){
       this.stateMachine.update(scene);
+      this._throttleColllisionYuka(scene);
   }
     
     
-    else{
+    else if(this.player.userData.isPlayerControlled==true){
+      const opponentGk=this.team.opponent.teamList.GK;
+      const teamGk=this.team.teamList.GK; 
+      const speed=this.player.body.ammo.getLinearVelocity().length().toFixed(2);
+
+      if(scene.director.userTeam==this.team){
+      this._checkUserPossession(scene);
+      }
+
+     if((opponentGk.stateMachine.in('clearBall') && opponentGk.stateMachine.get('clearBall').clearAnim != 'strike_forward') || opponentGk.stateMachine.in('catchBall') || (teamGk.stateMachine.in('clearBall')&& teamGk.stateMachine.get('clearBall').clearAnim != 'strike_forward') || teamGk.stateMachine.in('catchBall')) {
+      if(this.distBall<=20){
+        const dirBallPossessor= scene.ball.possessorClass.playerTurn.x < 0 ? -1 :1; 
+        this.player.body.setVelocity(dirBallPossessor*10,0,0);
+      }   
+     }
+     else{
         this.stateMachine.currentState=null;
         this.player.matrixAutoUpdate=true;
-   //     console.log(this.player.body.ammo.getLinearVelocity().length());
+     }  
     }
   }
   
 
   }
  _hasArrived(resetPosition,scene){
-  const distToReset= this.player.position.distanceTo(resetPosition?.target);
+  const distToReset= this.player.position.distanceTo(resetPosition.target);
+  const xDistToReset = this.player.position.x - resetPosition.target.x;
+  const zDistToReset = this.player.position.z - resetPosition.target.z;
+
   // 1.5 for half time,goal and goal kick, 2.0 for throw in, 2.5 for corner kick do later
   //console.log("Event Name:",scene.eName);
 
    if(scene.eName=='CornerKick'){
-    if(distToReset<=2.5){
+    if(distToReset<2.5){
       this.ResetDone= true;
     }
-    if (distToReset>2.5){
+    if (distToReset>=2.5){
    //   console.log(this.playerName,this.team.teamName,distToReset);
       this.ResetDone=false;
     }
   }
 
   else{
-    if(distToReset<=1.5){
+    if(distToReset<1.5){
       this.ResetDone= true;
     }
-    if (distToReset>1.5){
+    if (distToReset>=1.5){
       this.ResetDone=false;
     }
   }
@@ -766,7 +944,7 @@ yukaSync(entiity,renderComponent){
    this.availableTeammatePass= Object.values(this.team.teamList).filter(pl=>
     pl!=scene.ball.possessorClass && this._canPass(pl,scene)
   )
-//    console.log(this.availableTeammatePass);
+ //   console.log(this.availableTeammatePass);
 //  console.log('Can Pass to:',this.availableTeammatePass.player.name,this.availableTeammatePass.team.teamName);
 
   if(this.availableTeammatePass.length<1){
@@ -839,7 +1017,7 @@ return (this._canDribble(scene) && !this._isDefenderClose(scene));
   }
 
   _canPass(teammates,scene){
-    return teammates.distBall<45;
+    return teammates.distBall<=65;
     
   }
 
@@ -882,7 +1060,7 @@ return (this._canDribble(scene) && !this._isDefenderClose(scene));
     const toOpponent =opponent.player.position.clone().sub(this.ball.position).normalize();
     const distToOpponent=opponent.player.position.distanceTo(this.ball.position);
    // console.log('Dot:',opponent.player.name,opponent.team.teamName,toTarget.dot(toOpponent));
-    return toTarget.dot(toOpponent) > 0.6 &&  distToOpponent< 15;
+    return toTarget.dot(toOpponent) > 0.6 &&  distToOpponent< 8;
   }
   else{
     return false;
@@ -891,30 +1069,59 @@ return (this._canDribble(scene) && !this._isDefenderClose(scene));
 
 
   _decisionsPossessor(scene){
-    if(this._decisionsPossessorShoot(scene)){ 
-      const opponentGk=this.team.opponent.teamList.GK;
-       if(!opponentGk.stateMachine.in('saveBall')){
-        opponentGk.stateMachine.changeTo('saveBall')
-       }
-       return 'Shoot'
-      }
+    if(this._decisionsPossessorShoot(scene)){return 'Shoot'}
     else if(this._decisionsPossessorDribble(scene)){ return 'Dribble'}
     else if(this._decisionsPossessorPass(scene)){ return 'Pass'}
     else{return 'Dribble'};
     
   }
 
+  _checkUserPossession(scene){
+    if(scene.ball.possessorClass!=this && scene.ball.possessorTeamClass==this.team){
+      if(scene.ball?.possessorClass?.distBall > this.distBall && this.distBall<12){
+              scene.ball.possessorClass = this;
+              scene.ball.possessor = this.playerName;
+              scene.ball.possessorTeamClass=this.team;
+              scene.ball.possessorTeam=scene.ball.possessorTeamClass.teamName;
+              console.log('User posession changed');
+     }
+    }
+  }
+
   _distanceCheck(scene){
-  if(scene.ball.possessorClass==this && scene.ball.possessorTeamClass==this.team){
 
+   const opponentGk=this.team.opponent.teamList.GK;
+   const teamGk=this.team.teamList.GK; 
+   const currentPossessor = scene.ball.possessorClass;
+   const thisDistance = this.distBall;
+   const possessorDistance = currentPossessor ? currentPossessor.distBall : Infinity;
 
-    if(this.distBall<=8){
+  if((opponentGk.stateMachine.in('clearBall')) || opponentGk.stateMachine.in('catchBall') || (teamGk.stateMachine.in('clearBall')) || teamGk.stateMachine.in('catchBall')) {
+    if(!this.stateMachine.in('goHome')){
+      this.stateMachine.changeTo('goHome');
+      }
+  }
+  else if(scene.ball.possessorClass != this && (scene.barrierActive)){
+    if(!this.stateMachine.in('idle')){
+      this.stateMachine.changeTo('idle');
+      }
+  }
+
+  else if(this.stateMachine.previousState===this.stateMachine.get('shoot')){
+      if(!this.stateMachine.in('chaseBall')){ 
+        this.stateMachine.changeTo('chaseBall');
+        this.stateMachine.previousState=null;
+        }
+    }
+
+  else if(scene.ball.possessorClass==this && scene.ball.possessorTeamClass==this.team){
+     if(this.distBall<=8){
 
       if(scene.director.userTeam!=this.team){  
 
    const action= this._decisionsPossessor(scene);
-  // console.log('Action:',action);
-
+ //  console.log('Action:',action);
+   
         if(action==='Dribble'){
         if(!this.stateMachine.in('dribble')){
         this.stateMachine.changeTo('dribble');
@@ -923,19 +1130,28 @@ return (this._canDribble(scene) && !this._isDefenderClose(scene));
 
      else if(action==='Pass'){
         if(!this.stateMachine.in('passBall')){
-          this.stateMachine.changeTo('passBall');
-        } 
-      }
-    
-      else if(action==='Shoot'){
-        if(!this.stateMachine.in('shoot')){
-          this.stateMachine.changeTo('shoot');
+         this.stateMachine.changeTo('passBall');
+       // const passReceiver= this.stateMachine.get('passBall').receiver;
+       // console.log(this.playerName,this.team.teamName,'You are passing to:',passReceiver.playerName,passReceiver.team.teamName);
         }
+      
+      }
+
+      else if(action==='Shoot'){
+      if(this.distBall<3.5 && this.ball.position.y<=4 &&this.player.userData.dotP>=0.55){
+        if(!this.stateMachine.in('shoot')){
+         this.stateMachine.changeTo('shoot');
+         if(!opponentGk.stateMachine.in('saveBall')||opponentGk.stateMachine.previousState===opponentGk.stateMachine.get('saveBall')){
+          opponentGk.stateMachine.changeTo('saveBall');
+          }
+        }
+      }
       }
     }
 
     } 
-    else if(this.distBall<=50){
+    else{
+      //console.log(' You are still possessor but you musyt chase the ball');
       if(!this.stateMachine.in('chaseBall')){ 
        this.stateMachine.changeTo('chaseBall');
        }
@@ -943,67 +1159,95 @@ return (this._canDribble(scene) && !this._isDefenderClose(scene));
 
     
      }
-     
-    // Make Pursurers and supporters to be a max of 2  1 if it is User Team not Player Controlled 
-   //opponent
+  
+  else if(scene.ball.possessorClass != this){
 
- else if(scene.ball.possessorClass!=this && scene.ball.possessorTeamClass!=this.team){
-    if(this.distBall<50){
-    if(!this.stateMachine.in('chaseBall')){ 
-    this.stateMachine.changeTo('chaseBall');
-     }
+    if(scene.ball?.possessorClass?.stateMachine.get('passBall').receiver === this && !this.stateMachine.in('receiveBall')){
+        this.stateMachine.changeTo('receiveBall'); 
     }
 
-    else if(this.distBall>=50 && this.distBall <55){ 
+    else if (scene.ball?.possessorClass?.stateMachine.get('passBall').receiver === this && this.stateMachine.in('receiveBall')){
+   if( this.team.ballClosestPlayer == this && scene.ball.possessorTeamClass== this.team && this.stateMachine.get('receiveBall').timeDiff>=3500){
+    if(!this.stateMachine.in('chaseBall')){
+      this.stateMachine.changeTo('chaseBall');
+    //  console.log(this.playerName,this.team.teamName,'is receiving and close enough to chase the ball');
+    }
+  }
+   else if(this.team.ballClosestPlayer != this && scene.ball.possessorTeamClass== this.team && this.stateMachine.get('receiveBall').timeDiff>=5000){
+    if(!this.stateMachine.in('supportAttacker')){
+      this.stateMachine.changeTo('supportAttacker');
+    //  console.log(this.playerName,this.team.teamName,'is receiving but not close enough to chase the ball');
+    }
+  }
+ }
+  else if ( !this.stateMachine.in('receiveBall') &&
+  (possessorDistance > thisDistance || currentPossessor == null) &&
+  !currentPossessor?.stateMachine?.in('passBall') &&
+  !currentPossessor?.stateMachine?.in('shoot') &&
+  currentPossessor !== this &&
+  scene.ball.possessorTeamClass === this.team) {
+      
+      scene.ball.possessorClass= this;
+      scene.ball.possessor= this.playerName;
+      scene.ball.possessorTeamClass=this.team;
+      scene.ball.possessorTeam=scene.ball.possessorTeamClass.teamName; 
+      
+    //  console.log(this.playerName,this.team.teamName,'teammate is taking charge of the ball');   
+      }
+    
+    else if (!this.stateMachine.in('receiveBall')) {
+
+
+    if((!this.team.chasers.includes(this)|| !this.team.supportAttackers.includes(this)) && this.xDistBall>=55 && this.xDistBall <60){ 
       if(!this.stateMachine.in('idle')){
         this.stateMachine.changeTo('idle'); 
        }
     }
-    
-    else{
-      if(!this.stateMachine.in('goHome')){ 
-        this.stateMachine.changeTo('goHome');
-       }
-    }
-    }    
-  //teammate
 
- else if(scene.ball.possessorClass!=this && scene.ball.possessorTeamClass==this.team){
-  /*if(!this.player.userData.isPlayerControlled){
-    const action= this._decisionsTeammate(scene); 
-    console.log('Action:',action);
-  }*/
-     if(!this.stateMachine.in('receiveBall') && (scene.ball?.possessorClass?.distBall>this.distBall)){
-      scene.ball.possessorClass=this;
-      scene.ball.possessor=this.playerName;
+   else if(this.team.chasers.includes(this)){
+    if(!this.stateMachine.in('chaseBall')){
+   //   console.log(this.playerName,this.team.teamName,'You are chasing the ball');
+      this.stateMachine.changeTo('chaseBall');
      }
-   
-   else if(this.distBall<50 && !this.stateMachine.in('receiveBall')){
-      if(!this.stateMachine.in('supportAttacker')){ 
+    }
+    
+    else if(this.team.supportAttackers.includes(this)){
+      
+
+      if(!this.stateMachine.in('supportAttacker')){
         this.stateMachine.changeTo('supportAttacker');
        }
     }
-   else if(this.posName != 'defender' &&  !this.stateMachine.in('receiveBall')){
-      if(!this.stateMachine.in('supportAttacker')){ 
-       this.stateMachine.changeTo('supportAttacker');
+
+    else if(!this.team.chasers.includes(this) && !this.stateMachine.in('receiveBall')){ 
+      if(!this.stateMachine.in('supportDefence')){
+     //   console.log(this.playerName,this.team.teamName,'You are not chasing and not receiving the ball and you are supporting defence');
+        this.stateMachine.changeTo('supportDefence'); 
        }
     }
 
+    else if(!this.stateMachine.in('receiveBall')&& !this.team.supportAttackers.includes(this) ){
+       if (!this.stateMachine.in('supportAttacker')) {
+      //    console.log(this.playerName,this.team.teamName,'You are supporting attack from defence');
+              this.stateMachine.changeTo('supportAttacker');
 
-    else if(this.distBall>=50 && this.distBall <55 &&  !this.stateMachine.in('receiveBall')){ 
-      if(!this.stateMachine.in('idle')){
-        this.stateMachine.changeTo('idle'); 
-       }
-    }
-    
-    else if(this.distBall>=55){
+          }
+    } 
+   
+ 
+    else{
       if(!this.stateMachine.in('goHome')){ 
         this.stateMachine.changeTo('goHome');
        }
     }
   }
 
-
+ }   
+   else{
+    if(!this.stateMachine.in('goHome')){ 
+      this.stateMachine.changeTo('goHome');
+     }
+   }
   }
  
   postTrack(scene){
@@ -1014,4 +1258,83 @@ return (this._canDribble(scene) && !this._isDefenderClose(scene));
     
   }
   
+
+
+  _getNearbyOpponents(){
+    const Opponents= Object.values(this.team.opponent.teamList);
+    const closeOpponents= Opponents.filter(pl=>this.yukaPlayer.neighbors.includes(pl.yukaPlayer)); 
+
+   // console.log(this.playerName,this.team.teamName,'Close Opponents:',closeOpponents);
+    return closeOpponents;
+  }
+  _getAllNearby(){
+    const Opponents= Object.values(this.team.opponent.teamList);
+    const Teammates= Object.values(this.team.teamList);
+    const closeTeammates= Teammates.filter(pl=>this.yukaPlayer.neighbors.includes(pl.yukaPlayer));
+    const closeOpponents= Opponents.filter(pl=>this.yukaPlayer.neighbors.includes(pl.yukaPlayer)); 
+
+
+   // console.log(this.playerName,this.team.teamName,'Close Opponents:',closeOpponents);
+    return [...closeTeammates,...closeOpponents];
+  }
+
+  _checkKinematicCollision(scene, bodypart, opponents) {
+    if (bodypart && bodypart.body && opponents && opponents.length > 0) {
+      let collidedOpponent = null;
+  
+      opponents.forEach(opponent => {
+        const collidedPart = Object.values(opponent.parts).find(opponentPart => {
+          return opponentPart.userData.Box && bodypart.userData.Box && 
+                 bodypart.userData.Box.intersectsBox(opponentPart.userData.Box);
+        });
+  
+        // If a collision is found
+        if (collidedPart) {
+          collidedOpponent = opponent;
+        //  console.log('Collision Detected:',bodypart.userData.parent.team.teamName,bodypart.userData.parent.player.name,bodypart.userData.bodyPartName,opponent.team.teamName,opponent.player.name, collidedPart.userData.bodyPartName);
+          return; // Exit after detecting the first collision
+        }
+      });
+  
+      // If no collision was detected
+     /* if (!collidedOpponent) {
+        console.log('No collision detected');
+      }*/
+    }
+  }
+
+  _checkKinematicCollisionYuka(scene, bodypart, obj) {
+    if (bodypart && bodypart.body && obj && obj.length > 0) {
+      let collidedOpponent = null;
+      console.log('Nearby Opponents:',obj);
+      obj.forEach(opponent => {
+        const collidedPart = Object.values(opponent.parts).find(opponentPart => {
+          return opponentPart.userData.Box && bodypart.userData.Box && 
+                 bodypart.userData.Box.intersectsBox(opponentPart.userData.Box);
+        });
+  
+        // If a collision is found
+        if (collidedPart) {
+          collidedOpponent = opponent;
+         console.log('Collision Detected:',bodypart.userData.parent.team.teamName,bodypart.userData.parent.player.name,bodypart.userData.bodyPartName,opponent.team.teamName,opponent.player.name, collidedPart.userData.bodyPartName);
+          const initialObject= bodypart.userData.parent.player;
+          const collidedObject= opponent.player;
+            initialObject.body.setVelocity(
+            THREE.MathUtils.randInt(-4, 4), 
+            2, 
+            THREE.MathUtils.randInt(-4, 4)
+            );
+          return; // Exit after detecting the first collision
+        }
+      });
+  
+      // If no collision was detected
+     /* if (!collidedOpponent) {
+        console.log('No collision detected');
+      }*/
+    }
+  }
+  
+
 }
+

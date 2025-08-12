@@ -1,4 +1,4 @@
-import _ from 'lodash-es';
+import _, { find } from 'lodash-es';
 import {Keeper} from './Keeper.js';
 import {Player} from './Player.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -8,7 +8,7 @@ import {THREE} from 'enable3d'
 export class Team{
     //future: redefine class and make keepermodel optional
     //future: implement formation in the class
-    constructor(teamSize,teamName,playerModel,KeeperModel,goalassignment,shade,rot,size,ball,scene,xDirection,goalineTarget){
+    constructor(teamSize,teamName,playerModel,KeeperModel,goalassignment,shade,rot,size,ball,scene,xDirection,goalineTarget,abbreviation){
         this.teamSize=teamSize;
         this.teamName=teamName;
         this.playerModel=playerModel;
@@ -21,6 +21,7 @@ export class Team{
         this.teamList={};
         this.scene=scene
         this.xDirection=xDirection
+        this.abbreviation=abbreviation
         this.teamDistBall=[];
         this.teamDistPost=[];
         this.OFSLposx=null;
@@ -28,6 +29,26 @@ export class Team{
         this.goalineTargetName=goalineTarget;
         this.lastTouched=false;
         this.check=false;
+        this.resetTransition=null;
+        this.throwInTaker=null;
+        this.cornerTaker=null;
+        this.ballClosestPlayer=null;
+        this.supportAttackers=[];
+        this.chasers=[];
+        this.attackDirection= -xDirection;
+        this.gkTendTempA=new THREE.Vector3();
+        this.gkTendTempB=new THREE.Vector3();
+        this.receiverTempA=new THREE.Vector3();
+        this.receiverTempB=new THREE.Vector3();
+        this.fieldMax=new THREE.Vector3(98,0,53);
+        this.fieldMin=new THREE.Vector3(-98,0,-53);
+        this.respawnVec=new THREE.Vector3();
+        this.throwMax=new THREE.Vector3(91,0,53);
+        this.throwMin=new THREE.Vector3(-91,0,-53);
+        this.usedIndices = new Set(); // Track indices already used
+
+
+
 
         if(this.teamSize===3){
          this._createTeam3v3();
@@ -56,14 +77,14 @@ export class Team{
         const gltfloader= new GLTFLoader();
         //for the keeper
        gltfloader.load(this.KeeperModel,(gltf)=>{
-            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,6,0)
+            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,3,0)
         }) 
         //for the players
         const playerPromise=gltfloader.loadAsync(this.playerModel).then(gltf=>{
-            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,50*this.xDirection,6,0)
+            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,50*this.xDirection,3,0)
         });
         Promise.all([playerPromise]).then(()=>{
-            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,5*this.xDirection,6,0)
+            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,24*this.xDirection,3,0)
 
            });
 
@@ -79,15 +100,15 @@ export class Team{
         const gltfloader= new GLTFLoader();
         //for the keeper
         gltfloader.load(this.KeeperModel,(gltf)=>{
-            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,6,0)
+            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,3,0)
         }) 
         //for the players
         const playerPromise=gltfloader.loadAsync(this.playerModel).then(gltf=>{
-            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,0)
+            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,0)
         });
         Promise.all([playerPromise]).then(()=>{
-            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,30*this.xDirection,6,0)
-            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,5*this.xDirection,6,0)
+            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,45*this.xDirection,3,0)
+            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,22*this.xDirection,3,0)
            });
     }
 
@@ -101,16 +122,16 @@ export class Team{
         const gltfloader= new GLTFLoader();
         //for the keeper
         gltfloader.load(this.KeeperModel,(gltf)=>{
-            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,6,0)
+            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,3,0)
         })
         //for the players
         const playerPromise=gltfloader.loadAsync(this.playerModel).then(gltf=>{
-            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,0)
+            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,0)
         });
         Promise.all([playerPromise]).then(()=>{
-            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,40)
-            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,-40)
-            this.teamList.PL4.SetPlayer(this.scene,this.teamList.PL3.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,5*this.xDirection,6,0)
+            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,40)
+            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,-40)
+            this.teamList.PL4.SetPlayer(this.scene,this.teamList.PL3.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,22*this.xDirection,3,0)
            });
 
 
@@ -128,19 +149,19 @@ export class Team{
         const gltfloader= new GLTFLoader();
 
         gltfloader.load(this.KeeperModel,(gltf)=>{
-            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,6,0)
+            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,3,0)
         })
 
         const playerPromise=gltfloader.loadAsync(this.playerModel).then(gltf=>{
-            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,27)
+            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,27)
         });
         Promise.all([playerPromise]).then(()=>{
-            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,-27)
-            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,-40)
-            this.teamList.PL4.SetPlayer(this.scene,this.teamList.PL3.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,0)
-            this.teamList.PL5.SetPlayer(this.scene,this.teamList.PL4.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,40)
-            this.teamList.PL6.SetPlayer(this.scene,this.teamList.PL5.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,5*this.xDirection,6,27)
-            this.teamList.PL7.SetPlayer(this.scene,this.teamList.PL6.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,5*this.xDirection,6,-27)
+            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,-27)
+            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,-40)
+            this.teamList.PL4.SetPlayer(this.scene,this.teamList.PL3.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,0)
+            this.teamList.PL5.SetPlayer(this.scene,this.teamList.PL4.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,40)
+            this.teamList.PL6.SetPlayer(this.scene,this.teamList.PL5.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,22*this.xDirection,3,27)
+            this.teamList.PL7.SetPlayer(this.scene,this.teamList.PL6.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,22*this.xDirection,3,-27)
            });
 
     }
@@ -160,22 +181,22 @@ export class Team{
         const gltfloader= new GLTFLoader();
 
         gltfloader.load(this.KeeperModel,(gltf)=>{
-            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,6,0)
+            this.teamList.GK.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,100*this.xDirection,3,0)
         })
 
         const playerPromise=gltfloader.loadAsync(this.playerModel).then(gltf=>{
-            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,45)
+            this.teamList.PL1.SetPlayer(this.scene,gltf.scene.children[0],this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,45)
         });
         Promise.all([playerPromise]).then(()=>{
-            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,12)
-            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,-12)
-            this.teamList.PL4.SetPlayer(this.scene,this.teamList.PL3.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,6,-45)
-            this.teamList.PL5.SetPlayer(this.scene,this.teamList.PL4.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,45)
-            this.teamList.PL6.SetPlayer(this.scene,this.teamList.PL5.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,12)
-            this.teamList.PL7.SetPlayer(this.scene,this.teamList.PL6.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,-12)
-            this.teamList.PL8.SetPlayer(this.scene,this.teamList.PL7.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,35*this.xDirection,6,-45)
-            this.teamList.PL9.SetPlayer(this.scene,this.teamList.PL8.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,5*this.xDirection,6,27)
-            this.teamList.PL10.SetPlayer(this.scene,this.teamList.PL9.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,5*this.xDirection,6,-27)
+            this.teamList.PL2.SetPlayer(this.scene,this.teamList.PL1.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,12)
+            this.teamList.PL3.SetPlayer(this.scene,this.teamList.PL2.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,-12)
+            this.teamList.PL4.SetPlayer(this.scene,this.teamList.PL3.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,60*this.xDirection,3,-45)
+            this.teamList.PL5.SetPlayer(this.scene,this.teamList.PL4.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,45)
+            this.teamList.PL6.SetPlayer(this.scene,this.teamList.PL5.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,12)
+            this.teamList.PL7.SetPlayer(this.scene,this.teamList.PL6.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,-12)
+            this.teamList.PL8.SetPlayer(this.scene,this.teamList.PL7.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,40*this.xDirection,3,-45)
+            this.teamList.PL9.SetPlayer(this.scene,this.teamList.PL8.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,22*this.xDirection,3,27)
+            this.teamList.PL10.SetPlayer(this.scene,this.teamList.PL9.playerClone,this.goalassignment,this.kitColor,this.startRotation,this.size,22*this.xDirection,3,-27)
     
         });
 
@@ -210,8 +231,16 @@ export class Team{
          this.teamDistBall[8]=this.teamList?.PL8?.distBall;
          this.teamDistBall[9]=this.teamList?.PL9?.distBall; 
          this.teamDistBall[10]=this.teamList?.PL10?.distBall;
-    }
 
+         const findPlayer=Object.values(this.teamList).filter(pl =>pl.distBall && pl.posName!='goalkeeper');
+
+         findPlayer.sort((a,b)=>a.distBall-b.distBall);
+         this.ballClosestPlayer=findPlayer[0];
+        // console.log('findPlayer',this.ballClosestPlayer);  
+
+
+    }       
+           
     _teamPostTrack(){
         this.teamDistPost[0]= this.teamList?.GK?.distPost;
          this.teamDistPost[1]=this.teamList?.PL1?.distPost;
@@ -233,12 +262,10 @@ export class Team{
         const minDistPost= Math.min(...filterDistPost);
 
         const nextMin=filterDistPost.find(num => num >minDistPost);
-          this.scene.scene.traverse((obj)=>{ 
-            if(obj.userData.distPost=== nextMin){
-              this.OFSLposx= obj.position.x;
-            }
-            
-           })
+         const playerWithNextMin = Object.values(this.teamList).find(pl => pl.player && pl.player.userData.distPost === nextMin);
+    if (playerWithNextMin) {
+        this.OFSLposx = playerWithNextMin.player.position.x;
+    }
     }
 
     _transferInfoToPlayers(){
@@ -250,7 +277,7 @@ export class Team{
     }
 
     ResetPlayers(eventType){
-
+        this.respawnVec.set(this.scene.field.respawnBallLocation.x,0,this.scene.field.respawnBallLocation.z);
         if(eventType=='HalfTime'){
             Object.keys(this.teamList).forEach((key)=>{
                 if (_.has(this.teamList[key],'player')){this.ResetHalf(this.teamList[key].player,this.teamList[key])};  
@@ -338,6 +365,7 @@ export class Team{
     CheckPlayers(eventType){
     if(eventType=='HalfTime'){
         this.check = Object.values(this.teamList).every((pl)=>pl?.ResetDone==true);
+       
     }
     //TODO:do the same based on event types
     //Goal
@@ -371,68 +399,88 @@ export class Team{
     }
 
     _ResetTransition(){
-        this.teamList?.GK.stateMachine.changeTo('tendGoal');
-        this.teamList?.PL1.stateMachine.changeTo('idle');
-        this.teamList?.PL2.stateMachine.changeTo('idle'); 
-        this.teamList?.PL3?.stateMachine.changeTo('idle');
-        this.teamList?.PL4?.stateMachine.changeTo('idle');
-        this.teamList?.PL5?.stateMachine.changeTo('idle');
-        this.teamList?.PL6?.stateMachine.changeTo('idle'); 
-        this.teamList?.PL7?.stateMachine.changeTo('idle');
-        this.teamList?.PL8?.stateMachine.changeTo('idle');
-        this.teamList?.PL9?.stateMachine.changeTo('idle'); 
-        this.teamList?.PL10?.stateMachine.changeTo('idle');  
+
+        Object.keys(this.teamList).forEach((key)=>{
+            if (_.has(this.teamList[key],'player')){
+                if(this.teamList[key].posName=='goalkeeper'){
+                    this.teamList[key].stateMachine.changeTo('tendGoal');
+                }
+                else{
+                    this.teamList[key].stateMachine.changeTo('idle');
+                }
+            };  
+        })
+        this.resetTransition=false;
     }
 
+    _Transition(){
+
+        Object.keys(this.teamList).forEach((key)=>{
+            if (_.has(this.teamList[key],'player')){
+                if(this.teamList[key].posName!=='goalkeeper'){
+                    this.teamList[key].stateMachine.changeTo('chaseBall');
+                }
+            };  
+        })
+    }
   
     ResetHalf(player,PlClass){
         let xPos= Math.abs(PlClass.StartX) * this.xDirection;
         let zPos= PlClass.StartZ;
         PlClass.StartX=xPos;
         PlClass.StartZ=zPos;
-        this.resetPosition= new YUKA.Vector3(xPos,3,zPos);
-        this.resetPos=new YUKA.ArriveBehavior(this.resetPosition,3,1);
-        PlClass.yukaPlayer.steering.add(this.resetPos);
+        if(PlClass.posName=='goalkeeper'){
+            PlClass.yukaPlayer.steering.behaviors[2].target={x:xPos,y:3,z:zPos};
+            PlClass.yukaPlayer.steering.behaviors[2].deceleration=2;
+            PlClass.yukaPlayer.steering.behaviors[2].tolerance=0;
+        }
+        else{
+        PlClass.yukaPlayer.steering.behaviors[5].target={x:xPos,y:3,z:zPos};
+        PlClass.yukaPlayer.steering.behaviors[5].deceleration=3;
+        PlClass.yukaPlayer.steering.behaviors[5].tolerance=1;
+        }
         PlClass.stateMachine.changeTo('reset');
-       // this.resetPos.active=true;  
     }
 
     ResetGoal(player,PlClass){
         //use initial half start position as the reset position and make team that scored stay out of circle then spawn the ball
         
-        this.resetPosition= new YUKA.Vector3(PlClass.StartX,3,PlClass.StartZ);
-        this.resetPos=new YUKA.ArriveBehavior(this.resetPosition,3,1);
-        PlClass.yukaPlayer.steering.add(this.resetPos);
+        if(PlClass.posName=='goalkeeper'){
+            PlClass.yukaPlayer.steering.behaviors[2].target={x:PlClass.StartX,y:3,z:PlClass.StartZ};
+            PlClass.yukaPlayer.steering.behaviors[2].deceleration=2;
+            PlClass.yukaPlayer.steering.behaviors[2].tolerance=0;
+        }
+        else{
+        PlClass.yukaPlayer.steering.behaviors[5].target={x:PlClass.StartX,y:3,z:PlClass.StartZ};
+        PlClass.yukaPlayer.steering.behaviors[5].deceleration=3;
+        PlClass.yukaPlayer.steering.behaviors[5].tolerance=1;
+        }
         PlClass.stateMachine.changeTo('reset');
-        // this.resetPos.active=true; 
-        //         //TODO LATER: make team that scored stay out of circle
     }
 
     ResetThrowIn(player,PlClass){
     //implement throw in spread random here for opponent
-  let randDistX,randDistZ,resultVec,randVec,offset;
-  let fieldMax=new THREE.Vector3(98,0,53);
-  let fieldMin=new THREE.Vector3(-98,0,-53);
-  let throwMax=new THREE.Vector3(91,0,53);
-  let throwMin=new THREE.Vector3(-91,0,-53);
-  let respawnVec=new THREE.Vector3(this.scene.field.respawnBallLocation.x,0,this.scene.field.respawnBallLocation.z)
-  const startPos= new THREE.Vector3(PlClass.StartX,0,PlClass.StartZ);
-
+  let randDistX,randDistZ,offset
+  let resultVec=new THREE.Vector3() ,randVec= new THREE.Vector3();
   
-  //console.log(player.name,this.teamName,'randVec',randVec);
 // Get randoom Player that is not a goalkeeper to be our thrower and reposition 2 random teammates on each side to be close to the thrower and place the rest in their start position
 
 if(PlClass==this.throwInTaker){
     
-    if(respawnVec.z>0){resultVec= new THREE.Vector3(respawnVec.x,0,respawnVec.z-0.3);}
-    else if(respawnVec.z<0){resultVec= new THREE.Vector3(respawnVec.x,0,respawnVec.z+0.3);}
-  //  console.log("respawnVec:",respawnVec);
-  //  console.log(player.name,this.teamName,"resultVec",resultVec);
-    this.resetPosition= new YUKA.Vector3(resultVec.x,3,resultVec.z);
-    this.resetPos=new YUKA.ArriveBehavior(this.resetPosition,2,0);
-    PlClass.yukaPlayer.steering.add(this.resetPos);
+    if(this.respawnVec.z>0){resultVec.set(this.respawnVec.x,0,this.respawnVec.z-0.3);}
+    else if(this.respawnVec.z<=0){resultVec.set(this.respawnVec.x,0,this.respawnVec.z+0.3);}
+   
+    if(PlClass.posName=='goalkeeper'){
+        PlClass.yukaPlayer.steering.behaviors[2].target={x:resultVec.x,y:3,z:resultVec.z};
+        PlClass.yukaPlayer.steering.behaviors[2].deceleration=2;
+        PlClass.yukaPlayer.steering.behaviors[2].tolerance=0;
+    }
+    else{
+    PlClass.yukaPlayer.steering.behaviors[5].target={x:resultVec.x,y:3,z:resultVec.z};
+    PlClass.yukaPlayer.steering.behaviors[5].deceleration=3;
+    PlClass.yukaPlayer.steering.behaviors[5].tolerance=1;
+    }
     PlClass.stateMachine.changeTo('reset');
-    // this.resetPos.active=true; 
 }
 else if(PlClass.posName=='goalkeeper'){
 this.ApplyResetBehavior(PlClass,PlClass.StartX,PlClass.StartZ);
@@ -444,24 +492,24 @@ else{
           randDistX=Math.random()*(30-10)+10;
           randDistZ=Math.random()*(15-10)+10;
 
-          if(respawnVec.z>0){
-            randVec= new THREE.Vector3(
-                THREE.MathUtils.randFloat(respawnVec.x-randDistX, respawnVec.x+randDistX),
-                THREE.MathUtils.randFloat(fieldMin.y, fieldMax.y),
-                THREE.MathUtils.randFloat(respawnVec.z-randDistZ, respawnVec.z)
+          if(this.respawnVec.z>0){
+            randVec.set(
+                THREE.MathUtils.randFloat(this.respawnVec.x-randDistX, this.respawnVec.x+randDistX),
+                THREE.MathUtils.randFloat(this.fieldMin.y, this.fieldMax.y),
+                THREE.MathUtils.randFloat(this.respawnVec.z-randDistZ, this.respawnVec.z)
                 )
             } 
-      else if(respawnVec.z<0){
-            randVec= new THREE.Vector3(
-                THREE.MathUtils.randFloat(respawnVec.x-randDistX, respawnVec.x+randDistX),
-                THREE.MathUtils.randFloat(fieldMin.y, fieldMax.y),
-                THREE.MathUtils.randFloat(respawnVec.z, respawnVec.z+randDistZ)
+      else if(this.respawnVec.z<0){
+            randVec.set(
+                THREE.MathUtils.randFloat(this.respawnVec.x-randDistX, this.respawnVec.x+randDistX),
+                THREE.MathUtils.randFloat(this.fieldMin.y, this.fieldMax.y),
+                THREE.MathUtils.randFloat(this.respawnVec.z, this.respawnVec.z+randDistZ)
                 )
             }
 
         //  console.log(player.name,this.teamName,'randDistX,randDistZ',randDistX,randDistZ);
           //console.log(player.name,this.teamName,"randVec",randVec);
-          resultVec=randVec.clamp(fieldMin,fieldMax);
+          resultVec=randVec.clamp(this.fieldMin,this.fieldMax);
        //   console.log(player.name,this.teamName,"resultVec",resultVec);
           this.ApplyResetBehavior(PlClass,resultVec.x,resultVec.z);   
           }
@@ -470,27 +518,27 @@ else{
 
           if(PlClass.posName=='defender'){  
             offset=Math.random()*(50-35)+35
-           randDistX= respawnVec.x - (this.xDirection*-offset);
+           randDistX= this.respawnVec.x - (this.xDirection*-offset);
 
           }
           else if(PlClass.posName=='midfielder'){
             offset=Math.random()*(30-(-20))-20
-           randDistX=respawnVec.x - (this.xDirection*-offset)
+           randDistX=this.respawnVec.x - (this.xDirection*-offset)
           }
          else if(PlClass.posName=='forward'){
             offset=Math.random()*(10-(-10))-10
-            randDistX=respawnVec.x - (this.xDirection*-offset)
+            randDistX=this.respawnVec.x - (this.xDirection*-offset)
          }
 
-         if(respawnVec.z>0){
-               randVec= new THREE.Vector3(
+         if(this.respawnVec.z>0){
+               randVec.set(
                    randDistX,
                    0,
                    THREE.MathUtils.randFloat(PlClass.StartZ-randDistZ, PlClass.StartZ+randDistZ)
                    )
                } 
-         else if(respawnVec.z<0){
-               randVec= new THREE.Vector3(
+         else if(this.respawnVec.z<0){
+               randVec.set(
                 randDistX,
                 0,
                 THREE.MathUtils.randFloat(PlClass.StartZ+randDistZ, PlClass.StartZ-randDistZ)
@@ -502,10 +550,10 @@ else{
           // console.log(player.name,this.teamName,'offset,randDistZ',offset,randDistZ);
           // console.log(player.name,this.teamName,"randVec",randVec);
            if(PlClass.posName=='defender'||PlClass.posName=='forward'){
-            resultVec=randVec.clamp(throwMin,throwMax);
+            resultVec=randVec.clamp(this.throwMin,this.throwMax);
            }
            else{
-            resultVec=randVec.clamp(fieldMin,fieldMax);
+            resultVec=randVec.clamp(this.fieldMin,this.fieldMax);
               }
           // console.log(player.name,this.teamName,"resultVec",resultVec);
            this.ApplyResetBehavior(PlClass,resultVec.x,resultVec.z); 
@@ -517,24 +565,24 @@ else{
            randDistX=Math.random()*(35-20)+20;
            randDistZ=Math.random()*(30-20)+20;
  
-           if(respawnVec.z>0){
-             randVec= new THREE.Vector3(
-                 THREE.MathUtils.randFloat(respawnVec.x-randDistX, respawnVec.x+randDistX),
-                 THREE.MathUtils.randFloat(fieldMin.y, fieldMax.y),
-                 THREE.MathUtils.randFloat(respawnVec.z-randDistZ, respawnVec.z)
+           if(this.respawnVec.z>0){
+             randVec.set(
+                 THREE.MathUtils.randFloat(this.respawnVec.x-randDistX, this.respawnVec.x+randDistX),
+                 THREE.MathUtils.randFloat(this.fieldMin.y, this.fieldMax.y),
+                 THREE.MathUtils.randFloat(this.respawnVec.z-randDistZ, this.respawnVec.z)
                  )
              } 
-           else if(respawnVec.z<0){
-             randVec= new THREE.Vector3(
-                 THREE.MathUtils.randFloat(respawnVec.x-randDistX, respawnVec.x+randDistX),
-                 THREE.MathUtils.randFloat(fieldMin.y, fieldMax.y),
-                 THREE.MathUtils.randFloat(respawnVec.z, respawnVec.z+randDistZ)
+           else if(this.respawnVec.z<0){
+             randVec.set(
+                 THREE.MathUtils.randFloat(this.respawnVec.x-randDistX, this.respawnVec.x+randDistX),
+                 THREE.MathUtils.randFloat(this.fieldMin.y, this.fieldMax.y),
+                 THREE.MathUtils.randFloat(this.respawnVec.z, this.respawnVec.z+randDistZ)
                  )
              }
  
           // console.log(player.name,this.teamName,'randDistX,randDistZ',randDistX,randDistZ);
           // console.log(player.name,this.teamName,"randVec",randVec);
-           resultVec=randVec.clamp(fieldMin,fieldMax);
+           resultVec=randVec.clamp(this.fieldMin,this.fieldMax);
          //  console.log(player.name,this.teamName,"resultVec",resultVec);
            this.ApplyResetBehavior(PlClass,resultVec.x,resultVec.z); 
            }
@@ -543,27 +591,27 @@ else{
 
             if(PlClass.posName=='defender'){  
                 offset=Math.random()*(60-40)+40
-               randDistX= respawnVec.x - (this.xDirection*-offset);
+               randDistX= this.respawnVec.x - (this.xDirection*-offset);
     
               }
               else if(PlClass.posName=='midfielder'){
                 offset=Math.random()*(10-(-10))-10
-               randDistX=respawnVec.x - (this.xDirection*offset)
+               randDistX=this.respawnVec.x - (this.xDirection*offset)
               }
              else if(PlClass.posName=='forward'){
                 offset=Math.random()*(0-(-20))-20
-                randDistX=respawnVec.x - (this.xDirection*offset)
+                randDistX=this.respawnVec.x - (this.xDirection*offset)
              }
 
-         if(respawnVec.z>0){
-               randVec= new THREE.Vector3(
+         if(this.respawnVec.z>0){
+               randVec.set(
                    randDistX,
                    0,
                    THREE.MathUtils.randFloat(PlClass.StartZ-randDistZ, PlClass.StartZ+randDistZ)
                    )
                } 
-         else if(respawnVec.z<0){
-               randVec= new THREE.Vector3(
+         else if(this.respawnVec.z<0){
+               randVec.set(
                 randDistX,
                 0,
                 THREE.MathUtils.randFloat(PlClass.StartZ+randDistZ, PlClass.StartZ-randDistZ)
@@ -575,10 +623,10 @@ else{
           // console.log(player.name,this.teamName,'offset,randDistZ',offset,randDistZ);
           // console.log(player.name,this.teamName,"randVec",randVec);
            if(PlClass.posName=='defender'||PlClass.posName=='forward'){
-            resultVec=randVec.clamp(throwMin,throwMax);
+            resultVec=randVec.clamp(this.throwMin,this.throwMax);
            }
            else{
-            resultVec=randVec.clamp(fieldMin,fieldMax);
+            resultVec=randVec.clamp(this.fieldMin,this.fieldMax);
               }
           // console.log(player.name,this.teamName,"resultVec",resultVec);
            this.ApplyResetBehavior(PlClass,resultVec.x,resultVec.z); 
@@ -594,11 +642,9 @@ else{
 
         // Use initial half start positions but put them in an x offset respect to the position of the goal kick position then spawn the ball
         let offset=0;
-        let respawnVec=new THREE.Vector3(this.scene.field.respawnBallLocation.x,0,this.scene.field.respawnBallLocation.z)
-
         if(PlClass.posName=='goalkeeper'){
             if(this.goalKickTaker==PlClass){
-                this.ApplyResetBehavior(PlClass,PlClass.StartX,respawnVec.z); 
+                this.ApplyResetBehavior(PlClass,PlClass.StartX,this.respawnVec.z); 
             }
             else{
                 this.ApplyResetBehavior(PlClass,PlClass.StartX,PlClass.StartZ); 
@@ -609,21 +655,21 @@ else{
         else{
         if(this.scene.ball.possessorTeamClass===this){
             if(PlClass.posName=='defender'){
-                offset=15;
-                let xPos= PlClass.StartX - (this.xDirection*offset);
+                offset=20;
+                let xPos= this.respawnVec.x - (this.xDirection*offset);
                 this.ApplyResetBehavior(PlClass,xPos,PlClass.StartZ);
          
             }
 
             else if(PlClass.posName=='midfielder'){
-                offset=30;
-            let xPos= PlClass.StartX - (this.xDirection*offset);
+                offset=80;
+            let xPos= this.respawnVec.x - (this.xDirection*offset);
             this.ApplyResetBehavior(PlClass,xPos,PlClass.StartZ);
      
             }
             else if(PlClass.posName=='forward'){
-                offset=35;
-                let xPos= PlClass.StartX - (this.xDirection*offset);
+                offset=115;
+                let xPos= this.respawnVec.x - (this.xDirection*offset);
                 this.ApplyResetBehavior(PlClass,xPos,PlClass.StartZ);
 
             }
@@ -631,22 +677,22 @@ else{
         }
         else{
             if(PlClass.posName=='defender'){
-                offset=10;
-                let xPos= PlClass.StartX - (this.xDirection*offset);
+                offset=130;
+                let xPos=this.respawnVec.x+ (this.xDirection*offset);
                 this.ApplyResetBehavior(PlClass,xPos,PlClass.StartZ);    
         
             }
 
             else if(PlClass.posName=='midfielder'){
-                offset=30;
-            let xPos= PlClass.StartX - (this.xDirection*offset);
+                offset=90;
+            let xPos=this.respawnVec.x+ (this.xDirection*offset);
             this.ApplyResetBehavior(PlClass,xPos,PlClass.StartZ);    
       
 
             }
             else if(PlClass.posName=='forward'){
-                offset=20;
-                let xPos= Math.abs(PlClass.StartX) - (this.xDirection*offset);
+                offset=35;
+                let xPos=this.respawnVec.x + (this.xDirection*offset);
                 this.ApplyResetBehavior(PlClass,xPos,PlClass.StartZ);
                 
             }
@@ -656,36 +702,32 @@ else{
 
     ResetCornerKick(player,PlClass){
 
-        let posVec;
-        let respawnVec=new THREE.Vector3(this.scene.field.respawnBallLocation.x,0,this.scene.field.respawnBallLocation.z);
-        let selectedPosition;
+        let posVec= new YUKA.Vector3();
         const cornerPositions=['inside','around','outside'];
 
         if(this.insideBoxPlayersList.includes(PlClass)){
             posVec= this.CheckCKBoxPos('inside');
-            this.resetPosition= new YUKA.Vector3(posVec.x,3,posVec.z);
-            this.resetPos=new YUKA.ArriveBehavior(this.resetPosition,3,1);
-            PlClass.yukaPlayer.steering.add(this.resetPos);
+            PlClass.yukaPlayer.steering.behaviors[5].target={x:posVec.x,y:3,z:posVec.z};
+            PlClass.yukaPlayer.steering.behaviors[5].deceleration=3;
+            PlClass.yukaPlayer.steering.behaviors[5].tolerance=1;
             PlClass.stateMachine.changeTo('reset');
             // this.resetPos.active=true;        
              }
         else if(PlClass==this.cornerTaker){
-            if(respawnVec.z>0){posVec= new THREE.Vector3(respawnVec.x,0,respawnVec.z+5);}
-            else if(respawnVec.z<0){posVec= new THREE.Vector3(respawnVec.x,0,respawnVec.z-5);}
-          //  console.log("respawnVec:",respawnVec);
+            if(this.respawnVec.z>0){posVec.set(this.respawnVec.x,0,this.respawnVec.z+5);}
+            else if(this.respawnVec.z<0){posVec.set(this.respawnVec.x,0,this.respawnVec.z-5);}
+          //  console.log("this.respawnVec:",this.respawnVec);
           //  console.log(player.name,this.teamName,"resultVec",posVec);
-             this.resetPosition= new YUKA.Vector3(posVec.x,3,posVec.z)
-            this.resetPos=new YUKA.ArriveBehavior(this.resetPosition,2,0);
-            PlClass.yukaPlayer.steering.add(this.resetPos);
+             PlClass.yukaPlayer.steering.behaviors[5].target={x:posVec.x,y:3,z:posVec.z};
+             PlClass.yukaPlayer.steering.behaviors[5].deceleration=2;
+             PlClass.yukaPlayer.steering.behaviors[5].tolerance=0;
             PlClass.stateMachine.changeTo('reset');
-            // this.resetPos.active=true; 
                     }
         else if(PlClass.posName=='goalkeeper'){
-            this.resetPosition= new YUKA.Vector3(PlClass.StartX,3,PlClass.StartZ);
-            this.resetPos=new YUKA.ArriveBehavior(this.resetPosition,3,1);
-            PlClass.yukaPlayer.steering.add(this.resetPos);
+            PlClass.yukaPlayer.steering.behaviors[2].target={x:PlClass.StartX,y:3,z:PlClass.StartZ};
+            PlClass.yukaPlayer.steering.behaviors[2].deceleration=3;
+            PlClass.yukaPlayer.steering.behaviors[2].tolerance=1;
             PlClass.stateMachine.changeTo('reset');
-            // this.resetPos.active=true; 
                     }
         else{
             if(this.scene.ball.possessorTeamClass===this){
@@ -735,22 +777,27 @@ else{
     }
 
     ApplyResetBehavior(PlClass,xPos,zPos){
-        this.resetPosition= new YUKA.Vector3(xPos,3,zPos);
-        this.resetPos=new YUKA.ArriveBehavior(this.resetPosition,3,1);
-        PlClass.yukaPlayer.steering.add(this.resetPos);
+        if(PlClass.posName=='goalkeeper'){
+            PlClass.yukaPlayer.steering.behaviors[2].target={x:xPos,y:3,z:zPos};
+            PlClass.yukaPlayer.steering.behaviors[2].deceleration=2;
+            PlClass.yukaPlayer.steering.behaviors[2].tolerance=0;
+        }
+        else{
+        PlClass.yukaPlayer.steering.behaviors[5].target={x:xPos,y:3,z:zPos};
+        PlClass.yukaPlayer.steering.behaviors[5].deceleration=3;
+        PlClass.yukaPlayer.steering.behaviors[5].tolerance=1;
+        }
         PlClass.stateMachine.changeTo('reset');
-        // this.resetPos.active=true;    
          }
 
     ApplyCornerKickBehavior(PlClass, cornerPositions, weights) {
         const selectedPosition = this.PickCKBoxPos(cornerPositions, weights);
         // console.log(player.name, this.teamName, selectedPosition);
         const posVec = this.CheckCKBoxPos(selectedPosition);
-        this.resetPosition = new YUKA.Vector3(posVec.x, 3, posVec.z);
-        this.resetPos = new YUKA.ArriveBehavior(this.resetPosition, 3, 1);
-        PlClass.yukaPlayer.steering.add(this.resetPos);
+        PlClass.yukaPlayer.steering.behaviors[5].target={x:posVec.x,y:3,z:posVec.z};
+        PlClass.yukaPlayer.steering.behaviors[5].deceleration=3;
+        PlClass.yukaPlayer.steering.behaviors[5].tolerance=1;
         PlClass.stateMachine.changeTo('reset');
-        // this.resetPos.active=true; 
         return posVec;
     }
 
@@ -768,8 +815,8 @@ else{
         let arrCopy = [...arr];
         let weightsCopy = [...weights];
         const pickedElementsWithIndex = []; // Array to store picked elements with their indices
-        const usedIndices = new Set(); // Track indices already used
 
+        this.usedIndices.clear(); // Clear the set before picking new elements
         const pickedElements = Array.from({ length: count }, () => {
             //console.log('arrCopy:',arrCopy);
             //console.log('weightsCopy:',weightsCopy);
@@ -783,8 +830,8 @@ else{
             .map((el, index) => (el === pickedElement ? index : -1))
             .filter(index => index !== -1); // Get all indices of this element in the original array
 
-        const availableIndex = originalIndices.find(index => !usedIndices.has(index)); // Pick the first unused index
-        usedIndices.add(availableIndex); // Mark this index as used
+        const availableIndex = originalIndices.find(index => !this.usedIndices.has(index)); // Pick the first unused index
+        this.usedIndices.add(availableIndex); // Mark this index as used
 
             pickedElementsWithIndex.push({ element: pickedElement, index:  availableIndex });
     
@@ -827,24 +874,23 @@ else{
 
     CheckCKBoxPos(position){
     let posVec;   
-    let fieldMax=new THREE.Vector3(98,0,53);
-  let fieldMin=new THREE.Vector3(-98,0,-53);
     if(position=='inside'){
-    fieldMax.x=91;
-    fieldMin.x=-91;    
-    posVec=this.InsideBox(fieldMin,fieldMax);
+    this.fieldMax.x=91;
+    this.fieldMin.x=-91;    
+    posVec=this.InsideBox(this.fieldMin,this.fieldMax);
     }
     else if(position=='around'){
-    posVec=this.AroundBox(fieldMin,fieldMax);
+    posVec=this.AroundBox(this.fieldMin,this.fieldMax);
     }
     else if(position=='outside'){
-    posVec=this.OutsideBox(fieldMin,fieldMax);
+    posVec=this.OutsideBox(this.fieldMin,this.fieldMax);
     }
     return posVec;
     }
 
     InsideBox(fieldMin,fieldMax){
         let PB,PBox;
+        let randVec= new THREE.Vector3();
         if(this.scene.ball.possessorTeamClass===this){
             PB=this.opponent.PenaltyBox;
             PBox=this.opponent.PenaltyBox.userData.Box;
@@ -858,7 +904,7 @@ else{
         const randY = THREE.MathUtils.randFloat(PBox.min.y, PBox.max.y);
         const randZ = THREE.MathUtils.randFloat(PBox.min.z, PBox.max.z);
 
-        const randVec= new THREE.Vector3(randX,randY,randZ);
+        randVec.set(randX,randY,randZ);
         const cRandVec= randVec.clamp(fieldMin,fieldMax);
       //  console.log("PBox",PB);
      //  console.log('calculating Inside Vector...')
@@ -866,7 +912,8 @@ else{
     }
 
     OutsideBox(fieldMin,fieldMax){
-        let PB,PBox,randX,randY,randZ,randVec,t;
+        let PB,PBox,randX,randY,randZ,t;
+        let randVec= new THREE.Vector3();
         if(this.scene.ball.possessorTeamClass===this){
             PB=this.opponent.PenaltyBox;
             PBox=this.opponent.PenaltyBox.userData.Box;
@@ -888,14 +935,14 @@ else{
         if(PB.name=='goal-box-1'){
             randX = THREE.MathUtils.randFloat(PBox.max.x, t);
             randY = THREE.MathUtils.randFloat(PBox.max.y, 0);
-            randZ = THREE.MathUtils.randFloat(fieldMax.z, fieldMin.z);
+            randZ = THREE.MathUtils.randFloat(this.fieldMax.z, this.fieldMin.z);
         }
         else if(PB.name=='goal-box-2'){
             randX = THREE.MathUtils.randFloat(t,PBox.min.x);
             randY = THREE.MathUtils.randFloat(0,PBox.min.y);
-            randZ = THREE.MathUtils.randFloat(fieldMax.z, fieldMin.z);
+            randZ = THREE.MathUtils.randFloat(this.fieldMax.z, this.fieldMin.z);
         }
-         randVec= new THREE.Vector3(randX,randY,randZ);
+         randVec.set(randX,randY,randZ);
         const cRandVec= randVec.clamp(fieldMin,fieldMax);
       //  console.log("PBox",PB.name);
      //   console.log('calculating Outside Vector...');
@@ -904,7 +951,8 @@ else{
     }
 
     AroundBox(fieldMin,fieldMax){
-        let PB,PBox,randX,randY,randZ,randVec,t;
+        let PB,PBox,randX,randY,randZ,t;
+        let randVec= new THREE.Vector3();
         if(this.scene.ball.possessorTeamClass===this){
             PB=this.opponent.PenaltyBox;
             PBox=this.opponent.PenaltyBox.userData.Box;
@@ -927,16 +975,16 @@ else{
             do{
                 randX=THREE.MathUtils.randFloat(PBox.min.x, t);
                 randY=THREE.MathUtils.randFloat(PBox.min.y, 0);
-                randZ=THREE.MathUtils.randFloat(fieldMax.z, fieldMin.z);
-                randVec= new THREE.Vector3(randX,randY,randZ);
+                randZ=THREE.MathUtils.randFloat(this.fieldMax.z, this.fieldMin.z);
+                randVec.set(randX,randY,randZ);
             }while(PBox.containsPoint(randVec));
         }
         else if(PB.name=='goal-box-2'){
             do{
                 randX=THREE.MathUtils.randFloat(t,PBox.max.x);
                 randY=THREE.MathUtils.randFloat(0,PBox.max.y);
-                randZ=THREE.MathUtils.randFloat(fieldMax.z, fieldMin.z);
-                randVec= new THREE.Vector3(randX,randY,randZ);
+                randZ=THREE.MathUtils.randFloat(this.fieldMax.z, this.fieldMin.z);
+                randVec.set(randX,randY,randZ);
 
             }while(PBox.containsPoint(randVec));
         }
@@ -963,39 +1011,6 @@ else{
     }
    //  console.log(this.teamName,"Throw In receivers",this.throwInreceivers);   
     }
-
-    _update(){
-
-    
-            this.teamList?.GK?._update(this.scene);
-            this.teamList?.PL1?._update(this.scene);
-            this.teamList?.PL2?._update(this.scene); 
-            this.teamList?.PL3?._update(this.scene);
-            this.teamList?.PL4?._update(this.scene);
-            this.teamList?.PL5?._update(this.scene);
-            this.teamList?.PL6?._update(this.scene); 
-            this.teamList?.PL7?._update(this.scene);
-            this.teamList?.PL8?._update(this.scene);
-            this.teamList?.PL9?._update(this.scene); 
-            this.teamList?.PL10?._update(this.scene);
-
-            this._teamTrack();
-            this._teamPostTrack();
-            this._targetOffsideLine();
-            this._checkKicking();
-            if(this.scene.halfTimeCompleted==false && this.scene.halfTimeCalled!=1){
-                this.CheckPlayers('HalfTime');
-              //  console.log("checking half...")
-
-            }
-           else if(!this.scene.isClockRun && this.scene.eventName!=null&& this.scene.eName!=undefined && !(this.scene.Team1.check && this.scene.Team2.check)){
-                this.CheckPlayers(this.scene.eName);
-               //  console.log("checking event...")
-            }   
-                
-
-    }
-   
 
     _setAddManager(entityManager){
         this.teamList?.GK?._setAddManager(entityManager);
@@ -1031,12 +1046,25 @@ else{
                     newBehavior = new YUKA.ObstacleAvoidanceBehavior([...behavior.obstacles]);
                     newBehavior.dBoxMinLength = behavior.dBoxMinLength;
                 } 
-                else if (steeringType === 'arrive') {
+                else if (steeringType === 'arrive' || steeringType === 'reset') {
                     newBehavior = new YUKA.ArriveBehavior(new YUKA.Vector3(
                         behavior.target.x, behavior.target.y, behavior.target.z
                     ), behavior.deceleration, behavior.tolerance);
                 }
+                else if (steeringType === 'separation') {
+                    newBehavior = new YUKA.SeparationBehavior();
+                }
+                else if (steeringType === 'alignment') {
+                    newBehavior = new YUKA.AlignmentBehavior();
+                }
+                else if (steeringType === 'cohesion') {
+                    newBehavior = new YUKA.CohesionBehavior();
+                }
+                else if(steeringType === 'offset'){
+                    newBehavior = new YUKA.OffsetPursuitBehavior(behavior.leader,behavior.offset);
+                }
             newBehavior.weight = behavior.weight;
+            if(steeringType === 'reset'){newBehavior.active=false;}
             this.teamList[key].yukaPlayer.steering.add(newBehavior);
         //   console.log(this.teamList[key].yukaPlayer.steering.behaviors);
             }
@@ -1054,12 +1082,13 @@ else{
             newBehavior = new YUKA.ObstacleAvoidanceBehavior([...behavior.obstacles]);
             newBehavior.dBoxMinLength = behavior.dBoxMinLength;
         }
-        else if(steeringType === 'tendPost'){
+        else if(steeringType === 'tendPost' || steeringType === 'reset'){
             newBehavior = new YUKA.ArriveBehavior(new YUKA.Vector3(
                 behavior.target.x, behavior.target.y, behavior.target.z
             ), behavior.deceleration, behavior.tolerance);
         }
         newBehavior.weight = behavior.weight;
+        if(steeringType === 'reset'){newBehavior.active=false;}
         this.teamList?.GK?.yukaPlayer.steering.add(newBehavior);
       //  console.log(this.teamList?.GK?.yukaPlayer.steering.behaviors);
     }
@@ -1081,15 +1110,15 @@ else{
     }
 
     _checkKicking(){
-      //  if(this.teamName=='Swans'){
-          //  console.log(this.teamList?.GK);      
-         //   console.log(this.teamName,"yuka steer",this.teamList.PL3.ResetDone);  
-          //  console.log(this.teamName,"yuka steer",this.teamList.PL1.StartX,this.teamList.PL1.player);  
+        if(this.teamName=='Dragons'){
+        //  console.log(this.teamList?.GK.player?.userData);      
+           // console.log(this.teamName,"yuka steer",this.teamList?.PL4?.stateMachine?.currentState);  
+            console.log(this.teamName,"yuka steer",this.teamList?.PL4.player?.userData?.isPlayerControlled);  
           //  console.log(this.teamName,"OFSL dist",this.OFSLposx);  
          //   console.log(this.teamName,"POST USRDT dist",this.teamList?.PL2?.player?.userData?.distPost);  
          //   console.log(this.teamName,"Ball dist",this.teamDistBall);  
         //  console.log(`${this.teamName} DotP distance ${this.teamList?.GK?.player?.userData.dotP}`);  
-     //  }
+       }
            
     }
 
@@ -1111,5 +1140,73 @@ else{
        return obstacle.filter(ob =>ob != undefined);
     }
 
+    _updateSupportAttacker(){
+        this.supportAttackers=[];
+        const supportlength=Math.ceil((this.teamSize-1)/2);
+
+        const eligiblePl=Object.values(this.teamList).filter(pl => 
+            Number.isFinite(pl.xDistBall) && pl.xDistBall<55 && this.scene.ball.possessorTeamClass==this && this.scene.ball.possessorClass!=pl && pl.posName !='goalkeeper' && pl.player != this.scene.director.currPlayer); 
+        eligiblePl.sort((a,b)=>a.xDistBall-b.xDistBall);
+        
+        this.supportAttackers=eligiblePl.slice(0,supportlength)
+        const supportNames=this.supportAttackers.map(pl => pl.player.name);
+        if(this.scene.ball.possessorTeamClass==this){
+        //console.log(this.teamName,'supporter',this.supportAttackers);
+       // console.log(this.teamName,'supporters',supportNames);
+        }
+      
+
+    }
+    _updateChaser(){
+        this.chasers=[];
+        const chaserLength =1//2;
+
+        const eligiblePl=Object.values(this.teamList).filter(pl =>
+            Number.isFinite(pl.distBall)  && this.scene.ball.possessorTeamClass!=this && this.scene.ball.possessorClass!=pl && pl.posName !='goalkeeper' && pl.player != this.scene.director.currPlayer && this.scene.director.userTeam!=this);
+        eligiblePl.sort((a,b)=>a.distBall-b.distBall);
+
+        this.chasers=eligiblePl.slice(0,chaserLength);
+        const chaserState=this.chasers.map(pl => pl.stateMachine.currentState);
+        const chaserNames=this.chasers.map(pl => pl.player.name);
+        if(this.scene.ball.possessorTeamClass!=this){
+     // console.log(this.teamName,'chasersnames',chaserNames);
+    // console.log(this.teamName,'chaserState',chaserState);
+    //  console.log(this.teamName,'chaser',this.chasers);
+        }
+    }
+
+
+    _update(){ 
+        this.teamList?.GK?._update(this.scene);
+        this.teamList?.PL1?._update(this.scene);
+        this.teamList?.PL2?._update(this.scene); 
+        this.teamList?.PL3?._update(this.scene);
+        this.teamList?.PL4?._update(this.scene);
+        this.teamList?.PL5?._update(this.scene);
+        this.teamList?.PL6?._update(this.scene); 
+        this.teamList?.PL7?._update(this.scene);
+        this.teamList?.PL8?._update(this.scene);
+        this.teamList?.PL9?._update(this.scene); 
+        this.teamList?.PL10?._update(this.scene);
+
+        this._teamTrack();
+        this._teamPostTrack();
+        this._targetOffsideLine();
+        this._updateSupportAttacker();
+        this._updateChaser();
+
+      // this._checkKicking();
+        if(this.scene.halfTimeCompleted==false && this.scene.halfTimeCalled!=1 && !(this.scene.Team1.check && this.scene.Team2.check)){
+            this.CheckPlayers('HalfTime');
+          //  console.log("checking half...")
+
+        }
+       else if(!this.scene.isClockRun && this.scene.eventName!=null&& this.scene.eName!=undefined && !(this.scene.Team1.check && this.scene.Team2.check)){
+            this.CheckPlayers(this.scene.eName);
+           //  console.log("checking event...")
+        }   
+            
+
+}
   
 }

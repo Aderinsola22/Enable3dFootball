@@ -1,5 +1,4 @@
 import { ExtendedObject3D,Scene3D, THREE } from 'enable3d'
-import { EntityManager, Time } from 'yuka';
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -17,6 +16,7 @@ import { Director } from '../objects/Director.js';
 import { Offside } from '../objects/Offside.js';
 import * as YUKA from 'yuka';
 import * as dat from 'dat.gui';
+import { ConditionalNode, i } from 'mathjs';
 
 
 export class MatchScene extends Scene3D {
@@ -36,7 +36,9 @@ export class MatchScene extends Scene3D {
             //this.overlayRenderer.setSize(window.innerWidth,window.innerHeight);
         });
         console.warn = () => {};
-
+        this.viteMode=import.meta.env.MODE;
+        this.inProd=import.meta.env.PROD;
+    
     }
   
     async preload() {
@@ -45,34 +47,46 @@ export class MatchScene extends Scene3D {
     }
   
     async create() {
-        this.warpSpeed('-ground','-grid','-fog'/*,'-orbitControls'*/); 
-      // await this.Init_Environment()
-     // await this.InitMatch(3);
-    // await  this.InitMatch(4);
-  //  await  this.InitMatch(5);
-  //  await  this.InitMatch(8);
-  //  await   this.InitMatch(11);
- //  await this.Init_YukaEntities();
-  //await this.physics.debug.enable();  
+      let playerTotal; // 3-11
+       if(this.inProd || this.viteMode=='production'){
+        console.log("We are in Production mode");
+        playerTotal=11;
+        this.warpSpeed('-ground','-grid','-fog','-orbitControls'); 
 
-    // await this.InitTestPlayers();
+       }
+       else{
+        console.log("We are in Development mode");
+        playerTotal=11; //3,4,5,8,11
+        this.warpSpeed('-ground','-grid','-fog','orbitControls'); 
+       }
+     
+  //create Debug env where this is enabled  
+  // create env for tests     
+  // await this.InitTestPlayers();
 
     await this.Init_Environment()
-      .then(() => this.InitMatch(8))
+      .then(() => this.InitMatch(playerTotal))
       .then(() => this.Init_YukaEntities())
+      .then(() => this.ball.SetPossesion(this))
+      .then(()=>this.Init_Barrier())
       .then(()=> Promise.resolve(this.InitTimer()));
+
+    //  this.physics.debug.enable();   
+  
     }
 
     update() {
         this.stats.begin();
           this.InitUpdateAll();
-         // this.UpdateTest();
         this.stats.end()
 
     }
-
+  
+   LoadAsthetics(teamstyle,team){
+    document.getElementById(teamstyle).textContent = team.abbreviation;
+   } 
    async Init_Environment(){
-       this.camera.position.set(0,20,30);
+       this.camera.position.set(0,30,75);
         const txtloader = new THREE.TextureLoader();
         const texture = txtloader.load('./textures/fussballfeld_03_c.jpg');
         this.field= new Field(230,135,1);
@@ -117,7 +131,6 @@ export class MatchScene extends Scene3D {
 
         })
 
-
         //visualizer for GK Tending
       //  this.tendBox=this.add.box({y:8,width:1,height:1,depth:1},{basic:{color:'blue'}})
       //  this.tendBox.visible=false;
@@ -126,21 +139,21 @@ export class MatchScene extends Scene3D {
 
         //visualizer for Offside
         this.offsideLineteam1= this.add.box({x:-3,y:1,z:0,width:0.25,height:0.25,depth:135},{basic:{color:'black'}})
-        this.offsideLineteam1.name='Team-1';
        // this.offsideLineteam1.visible=false;
      
         this.offsideLineteam2= this.add.box({x:3,y:1,z:0,width:0.25,height:0.25,depth:135},{basic:{color:'white'}})
-        this.offsideLineteam2.name='Team-2';
         //this.offsideLineteam2.visible=false;
+        this._lookTarget = new THREE.Vector3();
+        this._camTargetPos = new THREE.Vector3();
+        this._sideOffset = new THREE.Vector3();
 
-       this.offsideteam1= new Offside(this,this.offsideLineteam2,this.Team1,'team-2-goal-post',this.ball);
-       this.offsideteam2= new Offside(this,this.offsideLineteam1,this.Team2,'team-1-goal-post',this.ball);
+       
 
        //Visualizer for Corner Flags
-    //  this.corner1=this.add.box({x:18,y:19,z:18,width:0.5,height:0.5,depth:0.5},{basic:{color:'black'}});
-    // this.corner2=this.add.box({x:-18,y:1,z:-18,width:1,height:1,depth:1},{basic:{color:'red'}})
-   //  this.corner3=this.add.box({x:103,y:3,z:36.7,width:1,height:1,depth:1},{basic:{color:'blue'}})
-     // this.corner4=this.add.box({x:69,y:3,z:-37.3,width:1,height:1,depth:1},{basic:{color:'yellow'}})
+   //   this.corner1=this.add.box({x:-34.5,y:3,z:0,width:0.5,height:0.5,depth:0.5},{basic:{color:'black'}});
+   //  this.corner2=this.add.box({x:-69,y:1,z:0,width:1,height:1,depth:1},{basic:{color:'red'}})
+   //  this.corner3=this.add.box({x:-103.5,y:1,z:0,width:1,height:1,depth:1},{basic:{color:'blue'}})
+  //   this.corner4=this.add.box({x:69,y:3,z:0,width:1,height:1,depth:1},{basic:{color:'yellow'}})
 
 //     this.corner1.visible=false;
 //     this.corner2.visible=false;
@@ -149,13 +162,16 @@ export class MatchScene extends Scene3D {
         }
 
   async  InitTimer(){
-      console.log('timer starts in 20 seconds');
+      console.log('timer starts in 15 seconds');
+  //this.leftEdge.visible=false;
+//this.rightEdge.visible=false;
+//this.centerEdge.visible=false;
       setTimeout(() => { 
         console.log('Start Timer and Activate behaviors');
         this.director._switchToNearestPlayer();
        
         this._KickOFF();
-      }, 20000);
+      }, 15000);
     
     }
   
@@ -191,8 +207,8 @@ export class MatchScene extends Scene3D {
        this.GKStartPointTeam1= new THREE.Vector3((this.Team1.xDirection*103), 3, 0);
       this.GKStartPointTeam2= new THREE.Vector3((this.Team2.xDirection*103), 3, 0);
 
-      this.biasPointTeam1=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam1);
-      this.biasPointTeam2=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam2);
+      this.biasPointTeam1=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam1,0.15,this.Team1.gkTendTempA,this.Team1.gkTendTempB);
+      this.biasPointTeam2=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam2,0.15,this.Team2.gkTendTempA,this.Team2.gkTendTempB);
 
       this.tendPositionTeam1GK= new YUKA.Vector3(this.biasPointTeam1.x,0,this.biasPointTeam1.z);
       this.tendPositionTeam2GK= new YUKA.Vector3(this.biasPointTeam2.x,0,this.biasPointTeam2.z);
@@ -201,13 +217,33 @@ export class MatchScene extends Scene3D {
 
       Obstacles=[this.ball.yukaBall];
       this.avoidBall= new YUKA.ObstacleAvoidanceBehavior(Obstacles);
-      this.avoidBall.dBoxMinLength=2.5;
+      this.avoidBall.dBoxMinLength=5;
       this.avoidBall.weight=0;
+
+      this.resetBehavior= new YUKA.ArriveBehavior(this.arrivePosition.clone(),0.1,0);
+      this.resetBehavior.weight=1;
+
+      /*const offset= new YUKA.Vector3(0,0,0);
+      const dummy= new YUKA.Vehicle();
+      this.offsetP= new YUKA.OffsetPursuitBehavior(dummy,offset);
+      this.offsetP.weight=0;*/
+
+      this.separation = new YUKA.SeparationBehavior()
+      this.separation.weight=0;
+
+      this.alignment= new YUKA.AlignmentBehavior();
+      this.alignment.weight=0;
+
+      this.cohesion= new YUKA.CohesionBehavior();
+      this.cohesion.weight=0;
+
 
       this.Team1._addKeeperSteeringBehaviors(this.avoidPlayers,'avoidPlayers');
       this.Team2._addKeeperSteeringBehaviors(this.avoidPlayers,'avoidPlayers');
       this.Team1._addKeeperSteeringBehaviors(this.tendPostTeam1GK,'tendPost');
       this.Team2._addKeeperSteeringBehaviors(this.tendPostTeam2GK,'tendPost');
+      this.Team1._addKeeperSteeringBehaviors(this.resetBehavior,'reset');
+      this.Team2._addKeeperSteeringBehaviors(this.resetBehavior,'reset');
 
 
       this.Team1._addPlayerSteeringBehaviors(this.seekBall,'seek');
@@ -220,8 +256,56 @@ export class MatchScene extends Scene3D {
       this.Team2._addPlayerSteeringBehaviors(this.arriveBall,'arrive');
       this.Team1._addPlayerSteeringBehaviors(this.avoidBall,'avoidBall');
       this.Team2._addPlayerSteeringBehaviors(this.avoidBall,'avoidBall');
+      this.Team1._addPlayerSteeringBehaviors(this.resetBehavior,'reset');
+      this.Team2._addPlayerSteeringBehaviors(this.resetBehavior,'reset');
+      this.Team1._addPlayerSteeringBehaviors(this.separation,'separation');
+      this.Team2._addPlayerSteeringBehaviors(this.separation,'separation');
+      this.Team1._addPlayerSteeringBehaviors(this.alignment,'alignment');
+      this.Team2._addPlayerSteeringBehaviors(this.alignment,'alignment');
+      this.Team1._addPlayerSteeringBehaviors(this.cohesion,'cohesion');
+      this.Team2._addPlayerSteeringBehaviors(this.cohesion,'cohesion');
+      
+    //  this.Team1._addPlayerSteeringBehaviors(this.offsetP,'offset'); 
+    //  this.Team2._addPlayerSteeringBehaviors(this.offsetP,'offset');
      
     }
+    
+  async Init_Barrier(){
+   const dir= this.ball.possessorTeamClass.opponent.xDirection;
+ this.leftEdge=this.add.box({x:dir*2,y:4,z:-37,width:3.5,height:6,depth:40.5},{basic:{color:'brown'}});
+ this.leftEdge.name = 'left-edge';
+ this.rightEdge = this.add.box({ x: dir*2, y: 4, z: 37, width: 3.5, height: 6, depth: 40.5 }, { basic: { color: 'brown' } });
+ this.rightEdge.name = 'right-edge';
+ this.centerEdge = this.add.cylinder({ x:dir*3, y: 4, z: 0,radiusTop:17,radiusBottom:17,height:6,openEnded:true,thetaLength:dir*3.142}, { basic: { color: 'brown' } });
+ this.centerEdge.name = 'center-edge';
+
+ this.physics.add.existing(this.centerEdge,{shape:'concave',mass:0,collisionFlags:2})
+ this.physics.add.existing(this.leftEdge,{mass:0,collisionFlags:2});
+ this.physics.add.existing(this.rightEdge,{mass:0,collisionFlags:2});
+  }
+
+  reInit_Barrier(){
+  //  console.log("readding physics...");
+    const dir= this.ball.possessorTeamClass.opponent.xDirection;
+ this.scene.remove(this.centerEdge)
+ this.leftEdge.position.x=dir==1 ? 2: -2;
+ this.rightEdge.position.x=this.leftEdge.position.x;
+
+ this.centerEdge = this.add.cylinder({ x:dir*3, y: 4, z: 0,radiusTop:17,radiusBottom:17,height:6,openEnded:true,thetaLength:dir*3.142}, { basic: { color: 'brown' } });
+ this.physics.add.existing(this.centerEdge,{shape:'concave',mass:0,collisionFlags:2})
+ this.physics.add.existing(this.leftEdge,{mass:0,collisionFlags:2});
+ this.physics.add.existing(this.rightEdge,{mass:0,collisionFlags:2});
+ 
+  } 
+  
+  remove_Barrier(){
+ //   console.log("removing...");
+ this.physics.destroy(this.centerEdge);
+ this.physics.destroy(this.leftEdge);
+ this.physics.destroy(this.rightEdge);
+
+  }
+
     ActivateBehaviors(){
       this.isyukaBehavior=true;
     }
@@ -240,16 +324,26 @@ export class MatchScene extends Scene3D {
         this.Team2._addGoalBox('goal-box-2');
        // console.log(this.Team1);
         //console.log(this.Team2);
+        this.offsideLineteam1.name='Team-1';
+        this.offsideLineteam2.name='Team-2';
+        this.offsideLineteam1.userData.owner=this.Team1;
+        this.offsideLineteam2.userData.owner=this.Team2;
+        this.offsideteam1= new Offside(this,this.offsideLineteam2,this.Team1,'team-2-goal-post',this.ball);
+       this.offsideteam2= new Offside(this,this.offsideLineteam1,this.Team2,'team-1-goal-post',this.ball);
     }
    
     InitTeam1(teamSize){
 
-      this.Team1= new Team(teamSize,'Dragons','./character/player_out/player.gltf','./character/player_out/player.gltf','team-1-goal-post',new THREE.Color(0,0,1),1.571,3.5,this.ball.ball,this,-1,'boundary-2');
+      this.Team1= new Team(teamSize,'Dragons','./character/player_out/player.gltf','./character/player_out/player.gltf','team-1-goal-post',new THREE.Color(0,0,1),1.571,3.5,this.ball.ball,this,-1,'boundary-2',' DRG ');
       this.director= new Director(this.Team1,this);
+      this.LoadAsthetics('team-1',this.Team1);
+
     }
     InitTeam2(teamSize){
-      this.Team2= new Team(teamSize,'Swans','./character/player_out/player.gltf','./character/player_out/player.gltf','team-2-goal-post',new THREE.Color(1,0,0),-1.571,3.5,this.ball.ball,this,1,'boundary-1');
+      this.Team2= new Team(teamSize,'Swans','./character/player_out/player.gltf','./character/player_out/player.gltf','team-2-goal-post',new THREE.Color(1,0,0),-1.571,3.5,this.ball.ball,this,1,'boundary-1',' SWN ');
     //  this.director= new Director(this.Team2,this);
+    this.LoadAsthetics('team-2',this.Team2);
+
     }
 
     StartTimer(){
@@ -261,7 +355,7 @@ export class MatchScene extends Scene3D {
         this.elapsedMinutes=0;
         this.gameElapsedTime=0;      
         this.gameElapsedMinutes=0;
-        this.timescale=9; // 9 is our default 5 minutes of real time per half
+        this.timescale=11.25; // 9 is our default 5 minutes of real time per half
        //rm= real minutes for a full 90 minutes game
        // timescale=90 (1rm); 45 (2rm); 22.5 (4rm); 11.25 (8rm); 9 (10rm); 7.5 (12rm); 5.6 (16rm); 4.5 (20rm); 3 (30rm); 1.5 (60rm); 1 (90rm)
         this.isClockRun=true;
@@ -322,7 +416,7 @@ export class MatchScene extends Scene3D {
         gltfloader.load(this.testPlayer.model,(gltf)=>{
           const target= gltf.scene.children[0];
             this.testPlayer.SetPlayer(this,target,'team-1-goal-post',new THREE.Color(0,0,1),1.571,3.5,5,6,0)
-            console.log(this.testPlayer.player);
+          //  console.log(this.testPlayer.player);
         })
         setTimeout(()=>{
           this.ball._test(this.testPlayer);
@@ -334,14 +428,15 @@ export class MatchScene extends Scene3D {
 
     }
     _KickOFF(){
-      this.ball.SetPossesion(this);
+      this.eventName='KickOFF';
+      this.barrierActive=true;
       this.ActivateBehaviors();
-      this.StartTimer();
     }
     
     _HalfTimeSwitch(){
       console.log("Half time switch");
       this.halfTimeCompleted=false;
+      this.director.currPlayer.userData.isPlayerControlled=false;
       this.DeactivateBehaviors();
       this.stoppageTime=0;
       this.eventCounts.goal= 0;         
@@ -350,7 +445,7 @@ export class MatchScene extends Scene3D {
       this.eventCounts.cornerKick= 0;   
       this.maxStoppageTime = 10 * 60;
       this.eventsAvailable=false;
-      const bufferTeam={goalassignment:null,startRotation:null,xDirection:null,goalineTargetName:null};
+      const bufferTeam={goalassignment:null,startRotation:null,xDirection:null,goalineTargetName:null,attackDirection:null};
 
       this.Team1._addGoalBox('goal-box-2');
       this.Team2._addGoalBox('goal-box-1');
@@ -358,18 +453,21 @@ export class MatchScene extends Scene3D {
       bufferTeam.goalassignment = this.Team1.goalassignment;
       bufferTeam.startRotation=this.Team1.startRotation;
       bufferTeam.xDirection=this.Team1.xDirection;
+      bufferTeam.attackDirection=this.Team1.attackDirection;
       bufferTeam.goalineTargetName=this.Team1.goalineTargetName;
 
       //Send Team 2 to Team 1
       this.Team1.goalassignment = this.Team2.goalassignment;
       this.Team1.startRotation=this.Team2.startRotation;
       this.Team1.xDirection=this.Team2.xDirection;
+      this.Team1.attackDirection=this.Team2.xDirection;
       this.Team1.goalineTargetName=this.Team2.goalineTargetName;
       
       //Send Buffer to Team 2
       this.Team2.goalassignment = bufferTeam.goalassignment;
       this.Team2.startRotation=bufferTeam.startRotation;
       this.Team2.xDirection=bufferTeam.xDirection;
+      this.Team2.attackDirection=bufferTeam.attackDirection;
       this.Team2.goalineTargetName=bufferTeam.goalineTargetName;
 
       
@@ -393,6 +491,9 @@ export class MatchScene extends Scene3D {
 
       //Reset Player Positions using yuka steering behaviors
       this.Reset('HalfTime');
+      this.Team1.lastTouched=false;
+      this.Team2.lastTouched=false;
+      this.barrierActive=true;
     }
 
   Reset(eventType){
@@ -431,60 +532,34 @@ export class MatchScene extends Scene3D {
   } 
 
   }
-  UserCornerKick(){   
-   
-    const playerClass= this.director.userTeam.cornerTaker;
-    
-
-    if(playerClass.shoot || playerClass.pass){
-    //  console.log('User Corrner Kick Here');
-      this.ball.possessorTeamClass=playerClass.team;
-      this.ball.possessorTeam=this.ball.possessorTeamClass.teamName;
-      this.ball.possessorClass=null;
-      this.ball.possessor=null; 
   
-      this.ball.handBallActive=true;
-      this.eventsAvailable=true;
-      this.ResumeThrowIn();
-      this.director._switchToNearestPlayer();
-      this.ball.ball.userData.isKicked=true;
-      setTimeout(()=>{
-      this.ball.ball.userData.isKicked=false;
-    },1500);
-    }
-  }
-
-  UserGoalKick(){
+  UserKick(){
     const playerClass= this.director.userTeam.goalKickTaker;
-    if(playerClass.shoot || playerClass.pass){
-    //  console.log('User Goal Kick Here');
-      this.ball.possessorTeamClass=playerClass.team;
-      this.ball.possessorTeam=this.ball.possessorTeamClass.teamName;
-      this.ball.possessorClass=playerClass;
-      this.ball.possessor=this.ball.possessorClass.playerName; 
-  
+    if(this.ball.ball.userData.isKicked && !this.eventsAvailable && !this.field.eventHappened){  
       this.ball.handBallActive=true;
       this.eventsAvailable=true;
       this.ResumeThrowIn();
       this.director._switchToNearestPlayer();
-      this.ball.ball.userData.isKicked=true;
-      setTimeout(()=>{
-      this.ball.ball.userData.isKicked=false;
-    },1500);
     }
-      
+    else{
+      if(this.ball.ball.position.x != this.field.respawnBallLocation.x){
+        this.field.eventHappened=true;
+      }
+    }  
      
   }
 
   ResumeHalf(){
-   this.field.respawnBallLocation = { x:0,y:0.9,z:0};
-   this.field.eventHappened=true;
+    this.barrierActive=false;
    this.eventsAvailable=true;
     this.halfTimeCompleted=true;
+    this.offsideteam1.active=true;
+    this.offsideteam2.active=true; 
     
   }  
 
   Resume(){
+    this.barrierActive=false;
     this.field.eventHappened=true;
     this.eventCompleted=true;
     this.eventsAvailable=true;
@@ -492,11 +567,22 @@ export class MatchScene extends Scene3D {
     this.offsideteam2.active=true;
   }
 
+  ResumeGoal(){
+    this.barrierActive=false;
+    this.eventCompleted=true;
+    this.eventsAvailable=true;
+    this.offsideteam1.active=true;
+    this.offsideteam2.active=true;
+  }
+
   ResumeThrowIn(){
+    this.barrierActive=false;
     this.eventCompleted=true;
     this.offsideteam1.active=true;
     this.offsideteam2.active=true;
+    if(this.eventCompleted){
     console.log("RESUME FROM ",this.eName,"at",this.GameTime);
+    }
   }
 
 
@@ -519,6 +605,7 @@ export class MatchScene extends Scene3D {
 
   ResetGoal(){
     //before
+    this.director.currPlayer.userData.isPlayerControlled=false;
     this.DeactivateBehaviors();
     this.eventsAvailable=false;
     //actual reset
@@ -528,7 +615,6 @@ export class MatchScene extends Scene3D {
     //before
     this.director.currPlayer.userData.isPlayerControlled=false;
     this.DeactivateBehaviors();
-   
     this.eventsAvailable=false;
       //actual reset
     this.Reset('ThrowIn');
@@ -553,12 +639,17 @@ export class MatchScene extends Scene3D {
   ResumeEvent(eventType){
     if(eventType=='HalfTime'){
       console.log("RESUME HALF at",this.GameTime);
-    
       this.ResumeHalf();
     }
+
     else if(eventType!=='HalfTime'){
       console.log("RESUME FROM ",this.eName,"at",this.GameTime);
+      if(this.eName=='Goal'){
+        this.ResumeGoal();
+      }
+      else{
       this.Resume();
+      }
     }
     
   }
@@ -566,8 +657,14 @@ export class MatchScene extends Scene3D {
   //ResetFreekick(){}
   //ResetFoul(){}
 
+ UpdateTimer() {
 
-  UpdateTimer() {
+  let lastDomUpdateTime = 0;
+  const timerElement = document.querySelector(".time-count");
+  const stoppageElement=document.querySelector(".stoppage-count");
+  const currentPlayerElement=document.querySelector(".player-name");
+  const updateInterval = 500; 
+
     const totalTime = this.clock.getElapsedTime();
     this.elapsedTime = totalTime;
   
@@ -589,101 +686,129 @@ export class MatchScene extends Scene3D {
   //    this.timescale=45;
       this.gameElapsedTime = (allTime - this.restartTime) * this.timescale;
       this.gameElapsedMinutes = this.bufferTime+this.gameElapsedTime / 60;
-  
+    }
+
+    if(this.stoppageTimeCalled==0){
+      const stoppageMinutes = Math.floor(this.stoppageTime / 60);
+      const stoppageSeconds = Math.floor(this.stoppageTime % 60);
+      this.StopTime= `${String(stoppageMinutes).padStart(2, '0')}:${String(stoppageSeconds).padStart(2, '0')}`;
     }
   
     
    if(!this.isClockRun && this.eventName!=null){
-   //console.log(this.Team1.check,this.Team2.check);
+  // console.log(this.Team1.check,this.Team2.check);
+    
      if(this.eName==undefined){
       this.bufferTime=this.gameElapsedMinutes;
      this.gameElapsedMinutes = this.bufferTime;
      this.gameElapsedTime = this.gameElapsedMinutes * 60;
       this.eName=this.eventName;
       this.ResetEvent(this.eName);
+      if(this.eName=='Goal'){this.barrierActive=true}
+      else{this.teamEvent=this.ball.possessorTeamClass;}
+      this.Team1.resetTransition=true;
+      this.Team2.resetTransition=true;
+
+     // console.log("team Possession",this.ball.possessorTeamClass.teamName);
    }
       //TODO: Rework this for throw ins and corners for the User team
       if(this.eventCompleted){
-        console.log("Event Done");
+       // console.log("Event Done");
         this.Team1.check=false;
         this.Team2.check=false;
         this.eventCompleted=false;
         this.isClockRun=true;
         this.eventName=null;
+        
         this.eName=undefined;
         this.restartTime = this.interCount * this.interval;
         this.director._switchToNearestPlayer(); 
         this.ActivateBehaviors();
         this.clock.start();
+        this.Team1._Transition();
+        this.Team2._Transition();
         this.Team1.teamList?.GK.stateMachine.changeTo('tendGoal');
         this.Team2.teamList?.GK.stateMachine.changeTo('tendGoal');
 
     }
     else if(this.Team1.check && this.Team2.check){
-        if(this.Team1?.resetPos != null){
-          this.Team1.RemoveBehavior(this.Team1.resetPos);
-          this.Team1._ResetTransition();
-        }
-        if(this.Team2?.resetPos !=null){
-          this.Team2.RemoveBehavior(this.Team2.resetPos);
+       if(this.Team1.resetTransition && this.Team2.resetTransition){
+          this.Team1._ResetTransition();        
           this.Team2._ResetTransition();
-        }
+       } 
       if(this.eName!='Goal'){
         this.director._switchToNearestPlayer();
-        const team =this.ball.possessorTeamClass;
-        if(this.ball.possessorTeamClass==this.director.userTeam.opponent){  
+        //const team =this.ball.possessorTeamClass;
+        if(this.teamEvent==this.director.userTeam.opponent){  
         if(this.eName=='ThrowIn'){
-          if(!team.throwInTaker.stateMachine.in('throwIn')){ 
-            team.throwInTaker.stateMachine.changeTo('throwIn');
+          if(!this.teamEvent.throwInTaker.stateMachine.in('throwIn')){ 
+            this.teamEvent.throwInTaker.stateMachine.changeTo('throwIn');
           }
         }
         else if(this.eName=='GoalKick'){
-          if(!team.goalKickTaker.stateMachine.in('goalKick')){
+          if(!this.teamEvent.goalKickTaker.stateMachine.in('goalKick')){
             this.ball.handBallActive=false;
             this.field.eventHappened=true;
-            team.goalKickTaker.stateMachine.changeTo('goalKick'); 
+            this.teamEvent.goalKickTaker.stateMachine.changeTo('goalKick'); 
           }
+       //   console.log('Goal Kick');
         }
         else if(this.eName=='CornerKick'){
-          if(!team.cornerTaker.stateMachine.in('cornerKick')){ 
+          if(!this.teamEvent.cornerTaker.stateMachine.in('cornerKick')){ 
             this.ball.handBallActive=false;
             this.field.eventHappened=true;
-            team.cornerTaker.stateMachine.changeTo('cornerKick');
+            this.teamEvent.cornerTaker.stateMachine.changeTo('cornerKick');
           }
         }
       }
-      else if(this.ball.possessorTeamClass==this.director.userTeam){
+      else if(this.teamEvent==this.director.userTeam){
         if(this.eName=='ThrowIn'){
+
         this.director.currPlayer.body.setVelocity(0,0,0);
         if(this.ball.handBallActive){
           if(this.ball.ball.body.getCollisionFlags()!=2){
           this.ball.ball.body.setCollisionFlags(2);
-        
-          this.ball.handBallActive=false;
         }
+        this.ball.handBallActive=false;
       }
         this.UserThrowIn();
+
         }
         else if(this.eName=='GoalKick'){
-          this.director._swtichToKeeper();
-          if(this.ball.handBallActive){  
-          this.field.eventHappened=true;
+          if(this.ball.handBallActive){ 
+            this.director._switchToNearestPlayer(); 
           this.ball.handBallActive=false;
+          this.field.eventHappened=true;
           }
-          this.UserGoalKick();
+          this.UserKick();
         }
         else if(this.eName=='CornerKick'){
           if(this.ball.handBallActive){
+            this.ball.handBallActive=false;
           this.field.eventHappened=true;
-          this.ball.handBallActive=false;
           }
-         this.UserCornerKick();
+         this.UserKick();
         }
       }
     }
     else if(this.eName=='Goal'){
-       this.ResumeEvent(this.eName); 
+      this.director._switchToNearestPlayer(); 
+      if(this.barrierActive && this.barrierActive!=null){
+        this.Team1.lastTouched=false;
+        this.Team2.lastTouched=false;
+        this.field.eventHappened=true;
+        this.ActivateBehaviors();
+        this.reInit_Barrier();
+        this.barrierActive=null
+      }
+     
+      if(this.Team1.lastTouched||this.Team2.lastTouched){
+        this.remove_Barrier();
+        this.ResumeEvent(this.eName); 
+      }
+     
     }
+
       }
    
    } 
@@ -701,12 +826,29 @@ export class MatchScene extends Scene3D {
     // Update game time string
     const minutes = Math.floor(this.gameElapsedMinutes);
     const seconds = Math.floor(this.gameElapsedTime % 60);
-    this.GameTime = `Game Time: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    this.GameTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   
     if (this.gameElapsedMinutes > 0 && this.gameElapsedMinutes <= 90 && this.isClockRun) {
-    //  console.log(this.GameTime);
+    //  console.log('Game Time:',this.GameTime);
+    }
+    //     console.log('Game Time:', this.StopTime);
+
+    const now = performance.now();
+    if (now - lastDomUpdateTime > updateInterval && this.GameTime!='NaN:NaN') {
+        lastDomUpdateTime = now;
+        timerElement.textContent = this.GameTime;
+        if(this.director.currPlayer!=undefined){
+          currentPlayerElement.textContent=this.director.currPlayer.name;
+        }
+        if(this.StopTime==undefined){
+          stoppageElement.textContent="00:00"
+        }
+        else{
+          stoppageElement.textContent=this.StopTime;
+        }
     }
   }
+ 
   
   handleHalfTime() {
     if (this.isClockRun) {
@@ -718,48 +860,56 @@ export class MatchScene extends Scene3D {
       console.log("Start Stoppage Time");
       this.stoppageTimeCalled = 1;
       this.stoppageClock.start();
-
+      this.Team1.resetTransition=true;
+      this.Team2.resetTransition=true;
     }
     this.updateStoppageTime('HalfTime');
   //  console.log(this.Team1.check,this.Team2.check);
       if (this.Team1.check && this.Team2.check) {
-        
-        if(this.Team1?.resetPos != null){
-          this.Team1.RemoveBehavior(this.Team1.resetPos);
-          this.Team1._ResetTransition();
-        }
-        if(this.Team2?.resetPos !=null){
-          this.Team2.RemoveBehavior(this.Team2.resetPos);
+          //Set 2nd Half Possessor
+        if(this.Team1.resetTransition && this.Team2.resetTransition){
+          this.Team1._ResetTransition();        
           this.Team2._ResetTransition();
-        }
-        this.ResumeEvent('HalfTime');
-      
-  
-      if (this.halfTimeCompleted) {
-        this.Team1.check=false;
-        this.Team2.check=false;
-        console.log("HALF TIME DONE 2ND HALF BEGINS");
-        this.halfTimeCompleted=false;
-        this.halfTimeCalled = 1;
-        this.isClockRun = true;
-        this.restartTime = this.interCount * this.interval;
-        this.ActivateBehaviors();
-        this.director._switchToNearestPlayer();
+       } 
+        this.director._switchToNearestPlayer(); 
+        if(this.barrierActive){
 
-         //Set 2nd Half Possessor
-      
       this.ball.possessorTeamClass= this.ball.IntialTeamClass.opponent;
       this.ball.possessorTeam= this.ball.possessorTeamClass.teamName
-
       const keys= Object.values(this.ball.possessorTeamClass.teamList)
-      const possessor=keys[keys.length-1]
-
+      const possessor=keys.at(-1);
       this.ball.possessorClass=possessor;
       this.ball.possessor=possessor.playerName;
 
-        this.clock.start();
+      console.log('Initial Possessor Team',this.ball.possessorTeam);
 
-      }
+          this.Team1.lastTouched=false;
+          this.Team2.lastTouched=false;
+          this.field.respawnBallLocation = { x:0,y:0.9,z:0};
+          this.field.eventHappened=true;
+          this.ActivateBehaviors();
+          this.reInit_Barrier();
+          this.barrierActive=null;
+        }
+        if(this.Team1.lastTouched||this.Team2.lastTouched){
+          this.remove_Barrier();
+          this.ResumeEvent('HalfTime');
+        }
+    }
+    if (this.halfTimeCompleted) {
+      this.Team1.check=false;
+      this.Team2.check=false;
+      console.log("HALF TIME DONE 2ND HALF BEGINS");
+      this.halfTimeCompleted=false;
+      this.halfTimeCalled = 1;
+      this.isClockRun = true;
+      this.restartTime = this.interCount * this.interval;
+      this.ActivateBehaviors();
+      this.director._switchToNearestPlayer();
+
+     
+      this.clock.start();
+
     }
   }
   
@@ -785,14 +935,19 @@ export class MatchScene extends Scene3D {
       
       if(halfType=='HalfTime'){
         console.log("END OF HALF STOPPAGE TIME");
-         this._UpdateScores();
         this._HalfTimeSwitch();
       }
       if(halfType=='FullTime'){
-        this.DeactivateBehaviors();
         this.fullTimeCalled = 1;
+        this.DeactivateBehaviors();
+        this.director.currPlayer.userData.parent.keyboard._isPaused=true;
+        this.eventsAvailable=false;
+        this.ball.handBallActive=false;
+        this.offsideteam1.active=false;
+        this.offsideteam2.active=false;
+
+
         console.log("END OF FULL STOPPAGE TIME");
-        this._UpdateScores();
       }
       //TODO:update later for extra time scenario
       this.stoppageTimeCalled = 0;
@@ -801,33 +956,134 @@ export class MatchScene extends Scene3D {
     const stoppageSeconds = Math.floor(stoppageTimeLeft % 60);
   
     if (stoppageTimeLeft > 0) {
-     //console.log(`Stoppage Time: ${String(stoppageMinutes).padStart(2, '0')}:${String(stoppageSeconds).padStart(2, '0')}`);
+      this.StopTime= `${String(stoppageMinutes).padStart(2, '0')}:${String(stoppageSeconds).padStart(2, '0')}`
+   //  console.log('Stoppage Time:',this.StopTime);
     }
   }
   
 
-    CalculateWeightedMidPoint(posA,posB){
-const bias = 0.15;
+    CalculateWeightedMidPoint(posA,posB,bias,tempA,tempB) {
+    // Calculate the weighted midpoint between two positions based on a bias value
+    // bias = 0.5 gives equal weight to both positions
+    // bias < 0.5 gives more weight to posA
+    // bias > 0.5 gives more weight to posB 
 
-const biasedMidpoint = new THREE.Vector3()
-    .copy(posA).multiplyScalar(bias)
-    .add(new THREE.Vector3().copy(posB).multiplyScalar(1 - bias));
 
- return biasedMidpoint;
+    tempA.copy(posA).multiplyScalar(bias);
+
+    tempB.copy(posB).multiplyScalar(1 - bias);
+
+     return tempA.add(tempB);
 
     }
 
-    UpdateCamera(){
-      const camTargetPos= new THREE.Vector3(
-        this.ball.ball.position.x,
-        this.ball.ball.position.y + 45,
-        this.ball.ball.position.z + 55
+   UpdateCamera() {
+  const ballPos = this.ball.ball.position;
+  const velocity = this.ball.ball.body.ammo.getLinearVelocity();
+  const ballTeam = this.ball.possessorTeamClass;
+  const teamDirection = ballTeam.attackDirection;
+  const relX = ballPos.x * teamDirection;
+
+  let offsetY = 45;
+  let fov = 50;
+  let offsetZ = 55;
+
+  const lookTarget = this._lookTarget;
+  const camTargetPos = this._camTargetPos;
+  const sideOffset = this._sideOffset;
+
+  sideOffset.set(0, 0, 15 * Math.sign(ballPos.z || 1));
+
+  if (relX >= -34.5 && relX <= 34.5 && this.eName == null) {
+    offsetY = 65;
+    offsetZ = 75;
+  } else if ((relX > 34.5 && relX <= 102.5 || relX < -34.5 && relX >= -102.5) && this.eName == null) {
+    offsetY = 55;
+    offsetZ = 75;
+  }
+
+  let camHeight = ballPos.y > 0 ? ballPos.y + offsetY : offsetY;
+
+  if (this.eName == null) {
+    if (ballPos.x > 69.5 || ballPos.x < -69.5) {
+      const goalX = ballPos.x > 0 ? (69.5 + 102.5) / 2 : -(69.5 + 102.5) / 2;
+      camTargetPos.set(goalX, camHeight, offsetZ).add(sideOffset);
+      this.camera.position.lerp(camTargetPos, 0.08);
+      lookTarget.set(ballPos.x, 0, ballPos.z);
+    } else {
+      camTargetPos.set(
+        ballPos.x - (10 * teamDirection),
+        camHeight,
+        ballPos.z + (1.1 * offsetZ)
+      ).add(sideOffset);
+      this.camera.position.lerp(camTargetPos, 0.08);
+      lookTarget.copy(ballPos);
+    }
+  } else {
+    if (this.eName !== 'Goal') {
+      this.goalStartTime = null;
+    }
+
+    if (this.eName === 'Goal') {
+      if (!this.goalStartTime) {
+        this.goalStartTime = performance.now();
+      }
+
+      const elapsedTime = (performance.now() - this.goalStartTime) / 1000;
+
+      if (elapsedTime >= 5) {
+        offsetY = 65;
+        offsetZ = 75;
+        camTargetPos.set(
+          this.field.respawnBallLocation.x,
+          camHeight,
+          offsetZ
+        ).add(sideOffset);
+        this.camera.position.lerp(camTargetPos, 0.08);
+        lookTarget.set(0, 0, 0);
+      } else {
+        camTargetPos.copy(this.camera.position); // maintain current
+        lookTarget.copy(ballPos);
+      }
+    }
+
+    else if (this.eName === 'ThrowIn') {
+      camHeight = this.field.respawnBallLocation.z > 0 ? camHeight : camHeight + 10;
+      offsetZ = this.field.respawnBallLocation.z > 0 ? offsetZ : offsetZ - 10;
+      camTargetPos.set(
+        this.field.respawnBallLocation.x,
+        camHeight,
+        2 * offsetZ
+      ).add(sideOffset);
+      this.camera.position.lerp(camTargetPos, 0.08);
+      lookTarget.set(
+        this.field.respawnBallLocation.x,
+        0,
+        this.field.respawnBallLocation.z
       );
-
-      this.camera.position.lerp(camTargetPos,0.1);
-      this.camera.lookAt(this.ball.ball.position);
     }
 
+    else if (this.eName === 'CornerKick') {
+      const goalX = ballPos.x > 0
+        ? (69.5 + this.field.respawnBallLocation.x) / 2
+        : (-69.5 + this.field.respawnBallLocation.x) / 2;
+      camHeight += 30;
+      camTargetPos.set(goalX, camHeight, 2 * offsetZ).add(sideOffset);
+      this.camera.position.lerp(camTargetPos, 0.08);
+      lookTarget.set(goalX, 0, 0);
+    }
+
+    else if (this.eName === 'GoalKick') {
+      const goalX = ballPos.x > 0 ? 102.5 / 2 : -102.5 / 2;
+      camTargetPos.set(goalX, camHeight, 1.5 * offsetZ).add(sideOffset);
+      this.camera.position.lerp(camTargetPos, 0.08);
+      lookTarget.set(goalX, 0, this.field.respawnBallLocation.z);
+    }
+  }
+
+  this.camera.lookAt(lookTarget);
+  this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fov, 0.05);
+}
 
     UpdateSeekBehavior(){
       this.seekPosition={x:this.ball.yukaBall.position.x,y:3,z:this.ball.yukaBall.position.z}
@@ -847,22 +1103,14 @@ const biasedMidpoint = new THREE.Vector3()
    
     }
     UpdateTendBehavior(){
-      this.biasPointTeam1=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam1);
-      this.biasPointTeam2=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam2);
+      this.biasPointTeam1=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam1,0.15,this.Team1.gkTendTempA,this.Team1.gkTendTempB);
+      this.biasPointTeam2=this.CalculateWeightedMidPoint(this.ball.ball.position,this.GKStartPointTeam2,0.15,this.Team2.gkTendTempA,this.Team2.gkTendTempB);
 
-//TODO: clamp the tend position x wawto be within the field boundaries
       this.biasPointTeam1.clamp(this.Team1.PenaltyBox.userData.Box.min,this.Team1.PenaltyBox.userData.Box.max);
       this.biasPointTeam2.clamp(this.Team2.PenaltyBox.userData.Box.min,this.Team2.PenaltyBox.userData.Box.max);
 
       this.tendPositionTeam1GK={x:this.biasPointTeam1.x,y:3,z:this.biasPointTeam1.z};
       this.tendPositionTeam2GK={x:this.biasPointTeam2.x,y:3,z:this.biasPointTeam2.z};
-
-    //if(this.tendPostTeam1GK){
-     //   this.tendPostTeam1GK.target=this.tendPositionTeam1GK;
-     // }
-    // if(this.tendPostTeam2GK){
-    //    this.tendPostTeam2GK.target=this.tendPositionTeam2GK;
-    //  }
     }
     _UpdateOffsideLine(){
 
@@ -892,10 +1140,19 @@ const biasedMidpoint = new THREE.Vector3()
       
     }
     _UpdateScores(){
-      console.log(`${this.Team1.teamName} ${this.Team1.goalScored} : ${this.Team2.teamName} ${this.Team2.goalScored}`)
+    //  console.log(`${this.Team1.teamName} ${this.Team1.goalScored} : ${this.Team2.teamName} ${this.Team2.goalScored}`)
+      document.getElementById('team-1-goal').textContent = this.Team1.goalScored;
+      document.getElementById('team-2-goal').textContent = this.Team2.goalScored;
+    }
+
+    _UpdateKeyboard(){
+      //O for options/settings
+      //p to pause
     }
 
     InitUpdateAll(){
+   //   console.log("update");
+
 
       this.field._update(this);
       
@@ -906,7 +1163,18 @@ const biasedMidpoint = new THREE.Vector3()
         this.director._update();
       }
       
-    
+    if((this.Team1.lastTouched || this.Team2.lastTouched)&&this.eventName=='KickOFF'){
+      this.remove_Barrier();
+      this.eventName=null;
+       this.barrierActive=false;
+      this.StartTimer();
+    }
+
+    if(this.leftEdge || this.rightEdge || this.centerEdge){
+     this.leftEdge.visible=false;
+     this.rightEdge.visible=false;
+     this.centerEdge.visible=false;
+    }
       
    //   console.log(this.entityManager);
 
@@ -914,9 +1182,20 @@ const biasedMidpoint = new THREE.Vector3()
       this.UpdateSeekBehavior();
      // this.UpdateArriveBehavior();
       this.UpdateTendBehavior();
-      this.UpdateTimer();
-    //  this.UpdateCamera();
+      if(this.eventName !='KickOFF'){
+        this.UpdateTimer();
+      }
       this._UpdateOffsideLine();
+     // this._UpdateKeyboard();
+      if(this.inProd || this.viteMode=='production'){
+           this.UpdateCamera();
+
+      }
+      else{
+        this.UpdateCamera();
+      }
+
+
 
       if(this.offsideteam1){
         this.offsideteam1._update();
@@ -930,7 +1209,6 @@ const biasedMidpoint = new THREE.Vector3()
    //   this.tendBox2.position.copy(this.tendPositionTeam2GK);
     
    //   console.log(this.tendBox.position);
-
 
     }
 

@@ -1,13 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="./style.css">
     <title>Football with Enable3d</title>
-  </head>
-  <body>
+</head>
+<body>
     <div id="app"></div>
-    <script type="module" src="./src/main.js"></script>  
-  </body>
+    <script type="module" src="./src/main.js"></script>
+
+    <!-- Tooltip Button -->
+    <div class="tooltip-container">
+        <button class="tooltip-button" id="tooltip-btn">?</button>
+    </div>
+  
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip">
+        <h2>How to Play</h2> 
+        <h3>Movement:</h3>
+    <ul>
+        <li><strong>W</strong> - Move Forward</li>
+        <li><strong>S</strong> - Move BackWard</li>
+        <li><strong>A / D</strong> - Turn Left / Right</li>
+        <li><strong>Left Shift</strong> - Sprint (Increase Speed)</li>
+        <li><strong>L</strong> - Switch to a Different Player</li>
+    </ul>
+
+    <h3>Attacking (When in Possession of the Ball):</h3>
+    <ul>
+     <!--   <li><strong>H</strong> - Cross</li> -->
+        <li><strong>J</strong> - Pass</li>
+        <li><strong>K</strong> - Shoot</li>
+    </ul>
+
+  <!--  <h3>Defending (When Opponent Has Possession):</h3>
+    <ul>
+        <li><strong>H</strong> - Slide Tackle</li>
+        <li><strong>J</strong> - Stand Tackle</li>
+    </ul>-->
+
+ <!--    <h3>Neutral:</h3>
+    <ul>
+        <li><strong>K</strong> - Clear the Ball (Only Works When Ball is in Your Half)</li>
+    </ul> 
+
+    <h3>Settings:</h3>
+    <ul>
+        <li><strong>O</strong> - Options/Settings</li>
+        <li><strong>P</strong> - Pause the Game</li>
+    </ul>-->
+
+    <h3>Tips:</h3>
+    <ul>
+        <li>Make sure you come in contact with the ball to ensure you have proper possession to use actions.</li>
+        <li>The Green Triangle turns Blue when in range to make a passing/shooting/clearing action with the ball.</li>
+        <li>The ball must be between you, the direction you are facing, and the Green Triangle must turn Blue.</li>
+    </ul>
+    </div>
+
+    <!-- Match Info -->
+    <div class="match-info-container">
+        
+
+        <div id="scoreboard" class="scoreboard-style">
+            <div class="team-style">
+              <div  class="team-logo">
+                <img src="./textures/dragon_logo.svg" alt="Team 1 Logo">
+            </div>
+                <p id="team-1" class="team-name">Team 1</p>
+                <p id="team-1-goal" class="team-goals">0</p>
+            </div>
+
+            <div class="team-style">
+              <div class="team-logo">
+                <img src="./textures/swan_logo.svg" alt="Team 2 Logo">
+            </div>
+                <p id="team-2" class="team-name">Team 2</p>
+                <p id="team-2-goal" class="team-goals">0</p>
+            </div>
+        </div>
+
+        <div id="time" class="time-style">
+            <p class="time-count">00:00</p>
+            <p class="stoppage-count">00:00</p>
+        </div>
+    </div>
+
+    <!-- Player Info -->
+    <div id="player-info">
+        <p class="player-name">N/A</p>
+        <div class="stamina-bar">Stamina</div>
+        <div class="power-bar">
+            <span class="power-label">Power</span>
+            <div class="power-bar-fill"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('tooltip-btn').addEventListener('click', function() {
+            const tooltip = document.getElementById('tooltip');
+            this.classList.toggle('active');
+            tooltip.classList.toggle('show');
+        });
+    </script>
+
+</body>
 </html>

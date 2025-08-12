@@ -12,10 +12,12 @@ export class Director{
         this.scene=scene;
         this.keyboard = new Keyboard();
         this._createDirector(scene);
+        this.greenLight = new THREE.Color(0,0.21,0);
+        this.blueLight = new THREE.Color(0,0,1);
 
     }
     _createDirector(scene){
-    this.director=new THREE.Group();   
+    this.directorObj=new THREE.Group();   
    const orbit= scene.add.cylinder( {y:-4,radiusTop:3,radiusBottom:3,height:2,heightSegments:1,openEnded:true}, {basic:{color:'red'}}
     );
     orbit.name='orbit'
@@ -33,73 +35,84 @@ export class Director{
     );
     arrow.name='arrow';
    orbit.visible=false;
-   this.director.add(pointer,orbit,arrow);
-   this.director.position.setY(1.5);
-   this.director.name="Director";
-   scene.add.existing(this.director);
-   this.director.visible=false;
+   this.directorObj.add(pointer,orbit,arrow);
+   this.directorObj.position.setY(1.5);
+   this.directorObj.name="Director";
+   scene.add.existing(this.directorObj);
+   this.directorObj.visible=false;
     }
     _switchToNearestPlayer(){
-            const playerDistBall=this.userTeam?.teamDistBall.slice(1);
-            const filterDistBall=playerDistBall.filter(Number.isFinite)
-            const minDistBall= Math.min(...filterDistBall);
-            let target=null;
-        this.scene.scene.traverse((obj)=>{
-            if(obj.userData.distBall=== minDistBall &&obj.userData.objtype=='player'){
-                target=obj;
-                this.currPlayer=target;
-                target.userData.isPlayerControlled=true;
-            }
-            else if(obj.userData.objtype=='player'){
-                obj.userData.isPlayerControlled=false;
-            }
-           })
-            target.add(this.director);
-            this.director.visible=true;     
            
+            let target=null;
+            const keeper=this.userTeam.teamList.GK
+
+        if((keeper?.stateMachine.in('GoalKick')||keeper?.stateMachine.in('catchBall')||(keeper?.stateMachine.in('clearBall')&& keeper?.stateMachine.previousState===keeper?.stateMachine.get('catchBall')))){
+            this._switchToKeeper();
+          //  console.log('current state:',keeper.stateMachine.currentState);
+        }
+        else if(this.scene.eName=='GoalKick'){
+            this._switchToKeeper();  
+        }
+            
+        else{
+            target=this.userTeam.ballClosestPlayer.player;
+            if(this.currPlayer){
+            this.currPlayer.userData.isPlayerControlled=false;
+            }
+            if(target){
+
+               this.currPlayer=target; 
+                this._add(this.currPlayer);
+            }
+          
+        }       
     }
 
-    _swtichToKeeper(){
-    this.currPlayer.userData.isPlayerControlled=false;
+    _switchToKeeper(){
+        if(this.currPlayer){
+            this.currPlayer.userData.isPlayerControlled=false;
+        }    
     const keeperTarget=this.userTeam.teamList.GK.player
     keeperTarget.userData.isPlayerControlled=true;
     this.currPlayer=keeperTarget;
-    this.currPlayer.add(this.director);
-    this.director.visible=true;
+    this.currPlayer.add(this.directorObj);
+    this.directorObj.visible=true;
     }  
 
     _remove(){
-     this.currPlayer.remove(this.director);   
-     //this.director.visible=false;
-     if(this.currPlayer.anims.current!=='idle'){
+     this.currPlayer.remove(this.directorObj);   
+     //this.directorObj.visible=false;
+   /*  if(this.currPlayer.anims.current!=='idle'){
         this.currPlayer.anims.play('idle');
-      }
+      }*/
         this.currPlayer=null;
      // this.currPlayer.body.setVelocity(0,0,0);
     }
     _add(player){
        player.userData.isPlayerControlled=true;
-       player.add(this.director);
-       this.director.visible=true;; 
+       player.add(this.directorObj);
+       this.directorObj.visible=true;
     }
 
     //TODO Later:Switch to GK
 
     _changeColor(){
         // Color for being with Kicking range
-        if( this.currPlayer.userData.distBall <=4.5 && this.currPlayer.userData.distBall >=2.0 && this.currPlayer.userData.dotP>=0.40){
-            this.currPlayer.children[1].children[2].material.color=new THREE.Color(0,0,1);
+        if( this.currPlayer.userData.distBall <=4.5 && this.currPlayer.userData.distBall >2.7 && this.currPlayer.userData.dotP>=0.40 && this.scene.ball?.possessorClass==this.currPlayer.userData.parent){
+            this.currPlayer.children[1].children[2].material.color=this.blueLight;
         }
         // TODO: ADD color for being within heading range and other special types of actions
+        //else if for volleys
+        //else if for headers
         else{
-            this.currPlayer.children[1].children[2].material.color=new THREE.Color(0,0.21,0);
+            this.currPlayer.children[1].children[2].material.color= this.greenLight;
         }
     }
     _update(){
        //fix bug- this crashes program if nothing is rendered before the callback to switch happens
         if(this?.userTeam){
-        const changePlayer=this.keyboard.key('KeyL').isDown;
-        this.keyboard.once.down('KeyL', keyCode => {
+      //  const changePlayer=this.keyboard.key('KeyL').isDown;
+        this.keyboard.once.up('KeyL', keyCode => {
             this._switchToNearestPlayer();
         })
 

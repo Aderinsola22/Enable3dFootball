@@ -1,73 +1,188 @@
-img{
-    width:10%;
-    height:auto;
+
+/* Global Styling */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
 }
 
-#player-info{
-    position: fixed;top: 88%;
-}
-#bar{
- font-size: 12px;
- text-align: center;
-}
-
-.stamina-bar{
-    background-color: white;
-    width:20%;
-    height:12px;
-    border-radius: 15px;
-    position: fixed;top: 93.5%;
-
+/* Tooltip Button */
+.tooltip-container {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    
 }
 
-.power-bar{
-    background-color:white ;
-    width:20%;
-    height: 12px;
-    border-radius: 15px;
-    position: fixed;top: 95%;
-
+.tooltip-button {
+    width: 50px;
+    height: 50px;
+    background: grey;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
+.tooltip-button.active {
+    background: blue;
+}
 
-.time-style{
-    transform: translate(590%,520%);
-    background-color:lightsalmon ;
-    margin-left: 20%;
-    margin-right: 50%;
-    width:5%;
+/* Tooltip */
+.tooltip {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #333;
+    color: white;
+    padding: 10px 20px;
+    font-size: 14px;
+    border-radius: 5px;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip.show {
+    visibility: visible;
+    opacity: 1;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Match Info */
+.match-info-container {
+    position: fixed;
+    top: 1%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Stopwatch */
+.time-style {
+    display: flex;
+    gap: 1px;
+   
+    margin-top: -19px;
+    
+
+}
+.time-count{
+    background-color: lightsalmon;
+    color: #000;
+    margin-top: 5px;
+    margin-left: 0.5px;
+    margin-right: 0.5px;
     text-align: center;
+    width: 66px;
+    height: auto;
 }
-
-
-.scoreboard-style{
-    transform: translate(40%,-13%);
-}
-.team-1-style{
-    margin-right: 80%;
+.stoppage-count{
+    background-color: blue;
+    color:white;
+    margin-top: 5px;
+    margin-left: 1px;
+    margin-right: 1px;
     text-align: center;
+    width: 66px;
+    height: auto;
 }
 
-.team-2-style{
- transform: translate(21%,-118%);
- margin-right: 80%;
-text-align: center;
- 
+/* Scoreboard */
+.scoreboard-style {
+    display: flex;
+    gap: 0px;
+    justify-content: center;
+    align-items: center;
 }
-#team-name{
+
+.team-style {
+    display: block;
+    align-items: center;
+    text-align: center;
+    gap: 5px;
+}
+
+.team-logo img {
+width: 25px; 
+height: auto;
+display: inline;
+align-items: center;
+}
+
+.team-name {
     background-color: greenyellow;
-    margin-left: 40%;
-    margin-right: 40%;
-    margin-top: 0%;
-}
-#team-goals{
-    background-color: blueviolet;
-    margin-left: 40%;
-    margin-right: 40%;
-    transform: translateY(-75%);
+    padding: 0px;
+    width: 66px;
+    margin-right: 1px;
+    margin-left: 1px;
 
 }
-.player-name{
-    background-color:coral;
-    transform: translate(90%,60%);
+
+.team-goals {
+    background-color: blueviolet;
+    color: white;
+    padding: 5px;
+    margin-top: -12px;
+    margin-left: 0.5px;
+    margin-left: 0.5px;
+
+    
+}
+
+/* Player Info */
+#player-info {
+    position: fixed;
+    bottom: 0%;
+    left: 0%;
+ /*   text-align: center;*/
+}
+
+.player-name {
+    background-color: coral;
+    color: white;
+    padding: 5px;
+    text-align: center;
+}
+
+/* Stamina & Power Bars */
+.stamina-bar {
+    background-color: white;
+    width: 250px;
+    height: 15px;
+    border-radius: 15px;
+    margin-top: 3px;
+    visibility: hidden;
+}
+.power-bar {
+    background-color: white;
+    width: 250px;
+    height: 15px;
+    border-radius: 15px;
+    margin-top: 3px;
+    overflow: hidden;
+    justify-self:center;
+    text-align: center; 
+
+   /* visibility: hidden;*/
+}    
+.power-bar-fill{
+    height: 15px;
+    width: 0%;
+    background-color: #4caf50;
+    transition: width 0.1s ease; 
+    position: absolute;
+    bottom: 0%;
+}
+.power-label{
+    position: relative;
+    z-index: 1;
 }

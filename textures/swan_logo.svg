@@ -1,0 +1,6 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="100" cy="100" r="80" fill="white" stroke="black" stroke-width="5"/>
+    <path d="M60 140 Q100 80, 140 140 T180 180" fill="none" stroke="black" stroke-width="5"/>
+    <polygon points="80,120 100,100 120,120" fill="black"/>
+    <text x="55" y="120" font-size="24" font-family="Arial" fill="black">SWANS</text>
+</svg>

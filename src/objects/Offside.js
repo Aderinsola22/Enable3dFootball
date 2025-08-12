@@ -13,44 +13,45 @@ export class Offside{
         this.offsidePlayers=[];
         this.ball=ball;
         this.active=true;
+        this._FlagOffside();
+
     }
     _getOffsidePlayers(){
-         let offPlayer=[];
-         offPlayer.length=0;
+    let offPlayer = [];
 
-     this.scene.scene.traverse((obj)=>{
-         if((obj.userData.postassignment != this.opponentPostName) && obj.userData.objtype=='player')
-         {
-            if(this.offsideLine.name =='Team-1'){
-               if(obj.position.x<this.offsideLine.position.x && obj.position.x< 0&& this.ball.ball.position.x>this.offsideLine.position.x){
-                offPlayer.push(obj);
-                this.offsidePlayers=[...offPlayer];
-              //  console.log(this.offsidePlayers);
-                this._checkOffside();
-               }
+
+    if(this.ball.possessorTeamClass=== this.team && this.team.opponent==this.offsideLine.userData.owner){
+    const playersToCheck = Object.values(this.team.teamList);
+
+    playersToCheck.forEach(playerClass => {
+        if (playerClass.player) {
+            const playerObj = playerClass.player;
+
+            if (this.offsideLine.name === 'Team-1') {
+                if (playerObj.position.x < this.offsideLine.position.x && playerObj.position.x < 0 && this.ball.ball.position.x > this.offsideLine.position.x) {
+                    offPlayer.push(playerObj);
+                }
+            } else if (this.offsideLine.name === 'Team-2') {
+                if (playerObj.position.x > this.offsideLine.position.x && playerObj.position.x > 0 && this.ball.ball.position.x < this.offsideLine.position.x) {
+                    offPlayer.push(playerObj);
+                }
             }
-
-            if(this.offsideLine.name =='Team-2'){
-                if(obj.position.x>this.offsideLine.position.x && obj.position.x> 0 && this.ball.ball.position.x<this.offsideLine.position.x) {
-                    offPlayer.push(obj);
-                    this.offsidePlayers=[...offPlayer];
-             //   console.log(this.offsidePlayers);
-                 this._checkOffside();
-                }   
-             }
-         }
-    })
+        }
+    });
     }
+    this.offsidePlayers = offPlayer;
+    this._checkOffside();
+}
 
     _checkOffside(){
         if(this.ball.isKicked==true){
             this.offsidePlayers.forEach(pl=>{
-             //   console.log(pl.name,'of',pl.userData.parent.team.teamName, "is offside do not let them touch the ball or it flags them offside");
+             console.log(pl.name,'of',pl.userData.parent.team.teamName, "is offside do not let them touch the ball or it flags them offside");
             })
 
         }
-    //    console.log(this.offsidePlayers);
-        this._FlagOffside();
+       
+       // console.log(this.offsidePlayers);
 
     }
 
@@ -67,7 +68,7 @@ export class Offside{
                 //    console.log(this.offsidePlayers);
                //    console.log(bodypart.userData.parent)
                     if( this.offsidePlayers.includes(bodypart.userData.parent.player)){
-                  //      console.log("OFF SIDE DETECTED")
+                   //     console.log("OFF SIDE DETECTED")
                     }
                 }
                 }
