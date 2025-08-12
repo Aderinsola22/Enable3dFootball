@@ -219,7 +219,7 @@ export class Ball{
    SetPossesion(scene){
       //50/50 chance of ball going to either team prior to kickoff set possessor team class
        const Teams= [scene.Team1,scene.Team2];
-       this.IntialTeamClass=Teams[Math.floor(Math.random()*Teams.length)];
+     this.IntialTeamClass=Teams[Math.floor(Math.random()*Teams.length)];
       //set possessor to the last player class in the teamList that exists and is not a goalkeeper
 
       // testing
